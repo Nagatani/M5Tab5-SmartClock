@@ -6,17 +6,20 @@ bool BSPTab5::init() {
     auto cfg = M5.config();
     cfg.serial_baudrate = 115200;
     cfg.clear_display = true;
-    cfg.output_power = true;
+    cfg.output_power = true; // 外部ポート (5V/3.3V) への給電を有効化
 
     M5.begin(cfg);
+
+    // 外部拡張ポート・LLM Module への電源供給を確実に有効化
+    M5.Power.setExtOutput(true);
 
     // M5GFX ディスプレイとタッチの初期化確認
     M5.Display.init();
     M5.Display.setRotation(1); // 横向き Landscape (1280x720)
     M5.Display.setBrightness(180);
 
-    // I2C 内部バスの初期化 (RTC / Touch / INA226)
-    Wire.begin(I2C_SDA_PIN, I2C_SCL_PIN, I2C_FREQ_HZ);
+    // 電源安定化待ち
+    delay(500);
 
     _initialized = true;
     Serial.println("[BSP] M5Stack Tab5 Hardware Initialized successfully.");

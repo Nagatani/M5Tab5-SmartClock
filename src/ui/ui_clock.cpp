@@ -28,18 +28,22 @@ void UIClock::init(lv_obj_t* parent) {
     lv_obj_set_flex_align(statusBar, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
 
     _lblWifiStatus = lv_label_create(statusBar);
+    lv_obj_set_style_text_font(_lblWifiStatus, UITheme::font_small_14, 0);
     lv_label_set_text(_lblWifiStatus, LV_SYMBOL_WIFI " 接続中...");
     lv_obj_set_style_text_color(_lblWifiStatus, COLOR_TEXT_SECONDARY, 0);
 
     _lblRtcStatus = lv_label_create(statusBar);
+    lv_obj_set_style_text_font(_lblRtcStatus, UITheme::font_small_14, 0);
     lv_label_set_text(_lblRtcStatus, "RTC: OK");
     lv_obj_set_style_text_color(_lblRtcStatus, COLOR_STATUS_OK, 0);
 
     _lblLlmStatus = lv_label_create(statusBar);
+    lv_obj_set_style_text_font(_lblLlmStatus, UITheme::font_small_14, 0);
     lv_label_set_text(_lblLlmStatus, "LLM: 待機中");
     lv_obj_set_style_text_color(_lblLlmStatus, COLOR_TEXT_SECONDARY, 0);
 
     _lblBattery = lv_label_create(statusBar);
+    lv_obj_set_style_text_font(_lblBattery, UITheme::font_small_14, 0);
     lv_label_set_text(_lblBattery, LV_SYMBOL_BATTERY_FULL " 100%");
     lv_obj_set_style_text_color(_lblBattery, COLOR_TEXT_SECONDARY, 0);
 
@@ -49,13 +53,13 @@ void UIClock::init(lv_obj_t* parent) {
     _lblDate = lv_label_create(_panel);
     lv_label_set_text(_lblDate, "2026年08月28日");
     lv_obj_set_style_text_color(_lblDate, COLOR_TEXT_SECONDARY, 0);
-    lv_obj_set_style_text_font(_lblDate, &lv_font_montserrat_24, 0);
+    lv_obj_set_style_text_font(_lblDate, UITheme::font_title_24, 0);
     lv_obj_align(_lblDate, LV_ALIGN_TOP_LEFT, 10, 60);
 
     _lblDayOfWeek = lv_label_create(_panel);
     lv_label_set_text(_lblDayOfWeek, "金曜日");
     lv_obj_set_style_text_color(_lblDayOfWeek, COLOR_ACCENT_CYAN, 0);
-    lv_obj_set_style_text_font(_lblDayOfWeek, &lv_font_montserrat_24, 0);
+    lv_obj_set_style_text_font(_lblDayOfWeek, UITheme::font_title_24, 0);
     lv_obj_align_to(_lblDayOfWeek, _lblDate, LV_ALIGN_OUT_RIGHT_MID, 16, 0);
 
     // ==========================================
@@ -64,7 +68,7 @@ void UIClock::init(lv_obj_t* parent) {
     _lblTime = lv_label_create(_panel);
     lv_label_set_text(_lblTime, "12:00:00");
     lv_obj_set_style_text_color(_lblTime, COLOR_ACCENT_CYAN, 0);
-    lv_obj_set_style_text_font(_lblTime, &lv_font_montserrat_48, 0);
+    lv_obj_set_style_text_font(_lblTime, UITheme::font_clock_48, 0);
     lv_obj_align(_lblTime, LV_ALIGN_TOP_LEFT, 10, 110);
 
     // ==========================================
@@ -79,6 +83,7 @@ void UIClock::init(lv_obj_t* parent) {
     lv_obj_set_style_pad_all(_panelSubtitle, 12, 0);
 
     _lblUserVoice = lv_label_create(_panelSubtitle);
+    lv_obj_set_style_text_font(_lblUserVoice, UITheme::font_body_18, 0);
     lv_label_set_text(_lblUserVoice, "🎤 「話しかけてください (例: 今日のニュースは？)」");
     lv_obj_set_style_text_color(_lblUserVoice, COLOR_TEXT_SECONDARY, 0);
     lv_label_set_long_mode(_lblUserVoice, LV_LABEL_LONG_WRAP);
@@ -86,6 +91,7 @@ void UIClock::init(lv_obj_t* parent) {
     lv_obj_align(_lblUserVoice, LV_ALIGN_TOP_LEFT, 0, 0);
 
     _lblAssistantReply = lv_label_create(_panelSubtitle);
+    lv_obj_set_style_text_font(_lblAssistantReply, UITheme::font_body_18, 0);
     lv_label_set_text(_lblAssistantReply, "🤖 LLM Ready.");
     lv_obj_set_style_text_color(_lblAssistantReply, COLOR_ACCENT_CYAN, 0);
     lv_label_set_long_mode(_lblAssistantReply, LV_LABEL_LONG_WRAP);
@@ -103,7 +109,7 @@ void UIClock::init(lv_obj_t* parent) {
 
     lv_obj_t* lblBtn = lv_label_create(_btnSpeakTime);
     lv_label_set_text(lblBtn, LV_SYMBOL_VOLUME_MAX " 現在時刻を音声で読み上げる");
-    lv_obj_set_style_text_font(lblBtn, &lv_font_montserrat_18, 0);
+    lv_obj_set_style_text_font(lblBtn, UITheme::font_body_18, 0);
     lv_obj_center(lblBtn);
 }
 

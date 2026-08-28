@@ -3,7 +3,6 @@
 #include <Arduino.h>
 #include <HTTPClient.h>
 #include <WiFiClientSecure.h>
-#include <tinyxml2.h>
 #include "config.h"
 #include "types.h"
 
@@ -26,5 +25,6 @@ private:
 
     const char* getCategoryUrl(NewsCategoryType type);
     const char* getCategoryName(NewsCategoryType type);
-    String cleanXmlText(const char* text);
+    String cleanXmlText(const String& rawText);
+    String extractTagContent(const String& src, const String& tag, int startIdx, int endIdx);
 };

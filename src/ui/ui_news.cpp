@@ -57,7 +57,7 @@ void UINews::init(lv_obj_t* parent) {
 
         lv_obj_t* lbl = lv_label_create(_btnTabs[i]);
         lv_label_set_text(lbl, CATEGORY_LABELS[i]);
-        lv_obj_set_style_text_font(lbl, &lv_font_montserrat_18, 0);
+        lv_obj_set_style_text_font(lbl, UITheme::font_body_18, 0);
         lv_obj_center(lbl);
     }
 
@@ -76,7 +76,7 @@ void UINews::init(lv_obj_t* parent) {
     _lblNewsTitle = lv_label_create(_cardPanel);
     lv_label_set_text(_lblNewsTitle, "ニュースを取得中...");
     lv_obj_set_style_text_color(_lblNewsTitle, COLOR_TEXT_PRIMARY, 0);
-    lv_obj_set_style_text_font(_lblNewsTitle, &lv_font_montserrat_24, 0);
+    lv_obj_set_style_text_font(_lblNewsTitle, UITheme::font_title_24, 0);
     lv_label_set_long_mode(_lblNewsTitle, LV_LABEL_LONG_WRAP);
     lv_obj_set_width(_lblNewsTitle, lv_pct(100));
     lv_obj_align(_lblNewsTitle, LV_ALIGN_TOP_LEFT, 0, 0);
@@ -85,19 +85,21 @@ void UINews::init(lv_obj_t* parent) {
     _lblNewsDesc = lv_label_create(_cardPanel);
     lv_label_set_text(_lblNewsDesc, "Wi-Fi接続後に最新のニュースを受信します。しばらくお待ちください。");
     lv_obj_set_style_text_color(_lblNewsDesc, COLOR_TEXT_SECONDARY, 0);
-    lv_obj_set_style_text_font(_lblNewsDesc, &lv_font_montserrat_18, 0);
+    lv_obj_set_style_text_font(_lblNewsDesc, UITheme::font_body_18, 0);
     lv_label_set_long_mode(_lblNewsDesc, LV_LABEL_LONG_WRAP);
     lv_obj_set_width(_lblNewsDesc, lv_pct(100));
     lv_obj_align(_lblNewsDesc, LV_ALIGN_TOP_LEFT, 0, 90);
 
     // メタ情報 (配信日時・ソース)
     _lblNewsMeta = lv_label_create(_cardPanel);
+    lv_obj_set_style_text_font(_lblNewsMeta, UITheme::font_small_14, 0);
     lv_label_set_text(_lblNewsMeta, "ソース: Yahoo!ニュース");
     lv_obj_set_style_text_color(_lblNewsMeta, COLOR_TEXT_MUTED, 0);
     lv_obj_align(_lblNewsMeta, LV_ALIGN_BOTTOM_LEFT, 0, 0);
 
     // ページインジケータ (1/10)
     _lblPageIndicator = lv_label_create(_cardPanel);
+    lv_obj_set_style_text_font(_lblPageIndicator, UITheme::font_small_14, 0);
     lv_label_set_text(_lblPageIndicator, "0 / 0");
     lv_obj_set_style_text_color(_lblPageIndicator, COLOR_ACCENT_CYAN, 0);
     lv_obj_align(_lblPageIndicator, LV_ALIGN_BOTTOM_RIGHT, 0, 0);
@@ -128,6 +130,7 @@ void UINews::init(lv_obj_t* parent) {
     lv_obj_add_style(_btnPrev, &UITheme::style_tab_btn, 0);
     lv_obj_add_event_cb(_btnPrev, btn_nav_event_cb, LV_EVENT_CLICKED, (void*)(intptr_t)-1);
     lv_obj_t* lblPrev = lv_label_create(_btnPrev);
+    lv_obj_set_style_text_font(lblPrev, UITheme::font_body_18, 0);
     lv_label_set_text(lblPrev, LV_SYMBOL_LEFT " 前へ");
     lv_obj_center(lblPrev);
 
@@ -137,6 +140,7 @@ void UINews::init(lv_obj_t* parent) {
     lv_obj_add_style(_btnSpeakNews, &UITheme::style_btn_primary, 0);
     lv_obj_add_event_cb(_btnSpeakNews, btn_speak_news_event_cb, LV_EVENT_CLICKED, NULL);
     lv_obj_t* lblSpeak = lv_label_create(_btnSpeakNews);
+    lv_obj_set_style_text_font(lblSpeak, UITheme::font_body_18, 0);
     lv_label_set_text(lblSpeak, LV_SYMBOL_VOLUME_MAX " このニュースを読み上げ");
     lv_obj_center(lblSpeak);
 
@@ -146,6 +150,7 @@ void UINews::init(lv_obj_t* parent) {
     lv_obj_add_style(_btnNext, &UITheme::style_tab_btn, 0);
     lv_obj_add_event_cb(_btnNext, btn_nav_event_cb, LV_EVENT_CLICKED, (void*)(intptr_t)1);
     lv_obj_t* lblNext = lv_label_create(_btnNext);
+    lv_obj_set_style_text_font(lblNext, UITheme::font_body_18, 0);
     lv_label_set_text(lblNext, "次へ " LV_SYMBOL_RIGHT);
     lv_obj_center(lblNext);
 

@@ -25,6 +25,9 @@
 #define LV_FONT_MONTSERRAT_48 1
 #define LV_FONT_DEFAULT &lv_font_montserrat_18
 
+/* Enable Tiny_TTF for dynamic TrueType Font (.ttf) loading */
+#define LV_USE_TINY_TTF 1
+
 /* Enable Japanese / UTF-8 font support */
 #define LV_TXT_ENC LV_TXT_ENC_UTF8
 

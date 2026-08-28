@@ -1,5 +1,6 @@
 #pragma once
 
+#include <Arduino.h>
 #include <lvgl.h>
 
 // ==========================================
@@ -20,32 +21,20 @@
 
 class UITheme {
 public:
-    static void initStyles() {
-        // パネル基本スタイル
-        lv_style_init(&style_panel);
-        lv_style_set_bg_color(&style_panel, COLOR_PANEL_BG);
-        lv_style_set_bg_opa(&style_panel, LV_OPA_COVER);
-        lv_style_set_border_color(&style_panel, COLOR_PANEL_BORDER);
-        lv_style_set_border_width(&style_panel, 1);
-        lv_style_set_radius(&style_panel, 16);
-        lv_style_set_pad_all(&style_panel, 16);
-
-        // ボタンスタイル
-        lv_style_init(&style_btn_primary);
-        lv_style_set_bg_color(&style_btn_primary, COLOR_ACCENT_BLUE);
-        lv_style_set_radius(&style_btn_primary, 12);
-        lv_style_set_shadow_width(&style_btn_primary, 8);
-        lv_style_set_shadow_color(&style_btn_primary, lv_color_hex(0x000000));
-        lv_style_set_shadow_opa(&style_btn_primary, LV_OPA_30);
-
-        // タブボタンスタイル
-        lv_style_init(&style_tab_btn);
-        lv_style_set_bg_color(&style_tab_btn, lv_color_hex(0x252A36));
-        lv_style_set_text_color(&style_tab_btn, COLOR_TEXT_PRIMARY);
-        lv_style_set_radius(&style_tab_btn, 8);
-    }
+    static void initStyles();
+    static bool loadJapaneseFontFromSD(const char* ttfPath = "/NotoSansJP-Regular.ttf");
 
     static lv_style_t style_panel;
     static lv_style_t style_btn_primary;
     static lv_style_t style_tab_btn;
+
+    // 日本語フォントポインタ (SDからロード成功時はTTF、未ロード時はMontserratへフォールバック)
+    static const lv_font_t* font_small_14;
+    static const lv_font_t* font_body_18;
+    static const lv_font_t* font_title_24;
+    static const lv_font_t* font_clock_48;
+
+private:
+    static uint8_t* _fontDataBuffer;
+    static size_t _fontDataSize;
 };

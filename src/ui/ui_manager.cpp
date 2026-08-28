@@ -77,6 +77,9 @@ bool UIManager::init() {
     // テーマスタイル初期化
     UITheme::initStyles();
 
+    // SD カードから日本語フォント (.ttf) のロードを試行
+    UITheme::loadJapaneseFontFromSD("/NotoSansJP-Regular.ttf");
+
     // 画面背景設定
     lv_obj_t* scr = lv_scr_act();
     lv_obj_set_style_bg_color(scr, COLOR_BG_MAIN, 0);

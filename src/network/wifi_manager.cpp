@@ -3,6 +3,9 @@
 bool WiFiManager::connect(const char* ssid, const char* password) {
     if (WiFi.status() == WL_CONNECTED) return true;
 
+    Serial.printf("[WiFi] Waiting for ESP32-C6 co-processor link...\n");
+    delay(1000); // C6 電源 ON 後のブート待機
+
     Serial.printf("[WiFi] Connecting to %s ...\n", ssid);
     WiFi.mode(WIFI_STA);
     WiFi.begin(ssid, password);
@@ -41,9 +44,9 @@ void WiFiManager::updateStatus(SystemStatus& status) {
 bool WiFiManager::checkAndReconnect() {
     if (isConnected()) return true;
 
-    if (millis() - _lastReconnectAttempt > 10000) {
+    if (millis() - _lastReconnectAttempt > 15000) {
         _lastReconnectAttempt = millis();
-        Serial.println("[WiFi] Connection lost. Attempting to reconnect...");
+        Serial.println("[WiFi] Attempting to reconnect...");
         WiFi.disconnect();
         WiFi.reconnect();
     }

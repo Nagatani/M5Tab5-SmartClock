@@ -20,16 +20,59 @@ const char* RSSParser::getCategoryName(NewsCategoryType type) {
     }
 }
 
-String RSSParser::cleanXmlText(const char* text) {
-    if (!text) return "";
-    String s = text;
+String RSSParser::cleanXmlText(const String& rawText) {
+    String s = rawText;
+    
+    // CDATA セクションの除去: <![CDATA[テキスト]]>
+    int cdataStart = s.indexOf("<![CDATA[");
+    if (cdataStart >= 0) {
+        int cdataEnd = s.indexOf("]]>", cdataStart + 9);
+        if (cdataEnd > cdataStart) {
+            s = s.substring(cdataStart + 9, cdataEnd);
+        }
+    }
+
+    // HTML タグの簡易除去 (<p>, <br>, <a> など)
+    while (true) {
+        int tagOpen = s.indexOf('<');
+        if (tagOpen < 0) break;
+        int tagClose = s.indexOf('>', tagOpen);
+        if (tagClose < 0) break;
+        s.remove(tagOpen, tagClose - tagOpen + 1);
+    }
+
+    // HTML 特殊文字のデコード
     s.replace("&amp;", "&");
     s.replace("&quot;", "\"");
     s.replace("&#39;", "'");
+    s.replace("&apos;", "'");
     s.replace("&lt;", "<");
     s.replace("&gt;", ">");
+    s.replace("&nbsp;", " ");
+    s.replace("&#8217;", "'");
+    s.replace("&#8216;", "'");
+    s.replace("&#8220;", "\"");
+    s.replace("&#8221;", "\"");
+
     s.trim();
     return s;
+}
+
+String RSSParser::extractTagContent(const String& src, const String& tag, int startIdx, int endIdx) {
+    String openTag = "<" + tag;
+    String closeTag = "</" + tag + ">";
+
+    int tagOpenPos = src.indexOf(openTag, startIdx);
+    if (tagOpenPos < 0 || (endIdx > 0 && tagOpenPos >= endIdx)) return "";
+
+    int contentStart = src.indexOf('>', tagOpenPos);
+    if (contentStart < 0 || (endIdx > 0 && contentStart >= endIdx)) return "";
+    contentStart += 1;
+
+    int tagClosePos = src.indexOf(closeTag, contentStart);
+    if (tagClosePos < 0 || (endIdx > 0 && tagClosePos > endIdx)) return "";
+
+    return src.substring(contentStart, tagClosePos);
 }
 
 bool RSSParser::fetchCategory(NewsCategoryType catType, NewsCategoryData& outData) {
@@ -41,7 +84,7 @@ bool RSSParser::fetchCategory(NewsCategoryType catType, NewsCategoryData& outDat
     Serial.printf("[RSS] Fetching %s RSS: %s\n", outData.name.c_str(), url);
 
     WiFiClientSecure client;
-    client.setInsecure(); // SSL証明書検証をスキップして軽量高速化
+    client.setInsecure(); // SSL証明書検証スキップによる高速化
 
     HTTPClient http;
     http.setUserAgent("Mozilla/5.0 (M5StackTab5-SmartClock)");
@@ -67,43 +110,44 @@ bool RSSParser::fetchCategory(NewsCategoryType catType, NewsCategoryData& outDat
         return false;
     }
 
-    // TinyXML2 による XML パース
-    tinyxml2::XMLDocument doc;
-    tinyxml2::XMLError err = doc.Parse(payload.c_str());
-    if (err != tinyxml2::XML_SUCCESS) {
-        Serial.printf("[RSS] XML Parse error: %d\n", err);
-        return false;
-    }
-
-    tinyxml2::XMLElement* rss = doc.FirstChildElement("rss");
-    if (!rss) return false;
-
-    tinyxml2::XMLElement* channel = rss->FirstChildElement("channel");
-    if (!channel) return false;
-
-    tinyxml2::XMLElement* itemElem = channel->FirstChildElement("item");
+    // <item> タグごとのパース処理
     size_t count = 0;
+    int curPos = 0;
 
-    while (itemElem && count < MAX_NEWS_ITEMS_PER_CAT) {
-        tinyxml2::XMLElement* titleElem = itemElem->FirstChildElement("title");
-        tinyxml2::XMLElement* descElem  = itemElem->FirstChildElement("description");
-        tinyxml2::XMLElement* pubElem   = itemElem->FirstChildElement("pubDate");
-        tinyxml2::XMLElement* linkElem  = itemElem->FirstChildElement("link");
+    while (count < MAX_NEWS_ITEMS_PER_CAT) {
+        int itemStart = payload.indexOf("<item>", curPos);
+        if (itemStart < 0) {
+            itemStart = payload.indexOf("<item ", curPos);
+            if (itemStart < 0) break;
+        }
+
+        int itemEnd = payload.indexOf("</item>", itemStart);
+        if (itemEnd < 0) break;
+
+        String itemXml = payload.substring(itemStart, itemEnd + 7);
+
+        String rawTitle = extractTagContent(itemXml, "title", 0, itemXml.length());
+        String rawDesc  = extractTagContent(itemXml, "description", 0, itemXml.length());
+        String rawPub   = extractTagContent(itemXml, "pubDate", 0, itemXml.length());
+        String rawLink  = extractTagContent(itemXml, "link", 0, itemXml.length());
 
         NewsItem& item = outData.items[count];
-        item.title = titleElem ? cleanXmlText(titleElem->GetText()) : "";
-        item.description = descElem ? cleanXmlText(descElem->GetText()) : "";
-        item.pubDate = pubElem ? cleanXmlText(pubElem->GetText()) : "";
-        item.link = linkElem ? cleanXmlText(linkElem->GetText()) : "";
+        item.title = cleanXmlText(rawTitle);
+        item.description = cleanXmlText(rawDesc);
+        item.pubDate = cleanXmlText(rawPub);
+        item.link = cleanXmlText(rawLink);
 
-        // 日時フォーマットの簡易調整 (例: "Fri, 28 Aug 2026 16:30:00 +0900" -> "16:30")
+        // 日時フォーマットの簡易調整 (例: "16:30")
         int timeIdx = item.pubDate.indexOf(':');
         if (timeIdx >= 2) {
             item.pubDate = item.pubDate.substring(timeIdx - 2, timeIdx + 3);
         }
 
-        count++;
-        itemElem = itemElem->NextSiblingElement("item");
+        if (item.title.length() > 0) {
+            count++;
+        }
+
+        curPos = itemEnd + 7;
     }
 
     outData.itemCount = count;
@@ -120,7 +164,7 @@ bool RSSParser::fetchAllCategories(NewsCategoryData categories[CAT_MAX]) {
         if (!success) {
             allSuccess = false;
         }
-        delay(200); // 連続リクエストの間隔
+        delay(200);
     }
     return allSuccess;
 }

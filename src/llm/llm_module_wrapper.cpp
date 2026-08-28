@@ -14,23 +14,29 @@ bool LLMModuleWrapper::init() {
     // Tab5 -> LLM Module シリアル初期化
     static HardwareSerial llmSerial(LLM_UART_NUM);
     _serial = &llmSerial;
+    
+    // まずデフォルト設定ピンで開始
     _serial->begin(LLM_UART_BAUDRATE, SERIAL_8N1, LLM_UART_RX_PIN, LLM_UART_TX_PIN);
-
     _module.begin(_serial);
 
     // モジュール接続確認 (Ping)
-    int retries = 5;
-    while (retries-- > 0) {
-        if (_module.sys.ping() == 0) {
-            Serial.println("[LLM] LLM Module Ping OK!");
-            _isReady = true;
-            break;
-        }
-        delay(500);
+    Serial.printf("[LLM] Checking module response on TX:%d RX:%d...\n", LLM_UART_TX_PIN, LLM_UART_RX_PIN);
+    
+    int pingResult = _module.sys.ping();
+    if (pingResult != 0) {
+        // Grove Port ピン (TX:1, RX:3) でも試行
+        Serial.println("[LLM] Not responding on default pins, trying Grove Port (TX:1, RX:3)...");
+        _serial->begin(LLM_UART_BAUDRATE, SERIAL_8N1, 3, 1);
+        _module.begin(_serial);
+        pingResult = _module.sys.ping();
     }
 
-    if (!_isReady) {
-        Serial.println("[LLM] LLM Module not responding. Will retry in background task.");
+    if (pingResult == 0) {
+        Serial.println("[LLM] LLM Module Ping OK!");
+        _isReady = true;
+    } else {
+        Serial.println("[LLM] LLM Module booting / not responding. Will keep retrying in background task...");
+        _isReady = false;
         return false;
     }
 
@@ -80,10 +86,16 @@ void LLMModuleWrapper::processTTSQueue() {
 }
 
 void LLMModuleWrapper::update() {
+    static unsigned long lastRetryMs = 0;
+
     if (!_isReady) {
-        // 未初期化の場合はリトライ
-        if (_serial && _module.sys.ping() == 0) {
-            init();
+        // 未初期化の場合は 2 秒ごとにリトライ (Linux ブート完了を待つ)
+        if (millis() - lastRetryMs > 2000) {
+            lastRetryMs = millis();
+            if (_serial && _module.sys.ping() == 0) {
+                Serial.println("[LLM] LLM Module booted up! Initializing services...");
+                init();
+            }
         }
         return;
     }
