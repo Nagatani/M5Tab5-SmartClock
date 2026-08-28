@@ -5,7 +5,8 @@
 
 /* Color depth: 16 (RGB565) */
 #define LV_COLOR_DEPTH 16
-#define LV_COLOR_16_SWAP 0
+/* Swap the 2 bytes of RGB565 color. Useful if the display has an 8-bit interface (SPI, etc.) or M5GFX */
+#define LV_COLOR_16_SWAP 1
 
 /* Memory manager */
 #define LV_MEM_CUSTOM 0

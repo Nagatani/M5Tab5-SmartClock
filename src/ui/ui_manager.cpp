@@ -18,8 +18,7 @@ void UIManager::dispFlushCb(lv_disp_drv_t* disp, const lv_area_t* area, lv_color
 
     auto& display = BSPTab5::getInstance().getDisplay();
     display.startWrite();
-    display.setAddrWindow(area->x1, area->y1, w, h);
-    display.writePixels((uint16_t*)&color_p->full, w * h, true);
+    display.pushImage(area->x1, area->y1, w, h, (uint16_t*)color_p);
     display.endWrite();
 
     lv_disp_flush_ready(disp);
@@ -105,6 +104,15 @@ void UIManager::unlock() {
 }
 
 void UIManager::loop() {
+    static uint32_t lastTick = 0;
+    uint32_t current = millis();
+    if (lastTick == 0) lastTick = current;
+    uint32_t elapsed = current - lastTick;
+    if (elapsed > 0) {
+        lv_tick_inc(elapsed);
+        lastTick = current;
+    }
+
     if (lock(pdMS_TO_TICKS(50))) {
         lv_timer_handler();
         unlock();

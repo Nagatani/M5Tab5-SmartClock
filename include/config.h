@@ -27,10 +27,10 @@
 #define CLOCK_PANEL_WIDTH       704   // 左側 55%
 #define NEWS_PANEL_WIDTH        576   // 右側 45%
 
-// LLM Module UART Connection (Port.C / M5-BUS)
+// LLM Module UART Connection (M5-BUS: TX=37, RX=38)
 #define LLM_UART_NUM            1
-#define LLM_UART_TX_PIN         19    // Tab5 TX -> LLM RX (必要に応じて変更可能)
-#define LLM_UART_RX_PIN         20    // Tab5 RX <- LLM TX (必要に応じて変更可能)
+#define LLM_UART_TX_PIN         37    // Tab5 M5-BUS TX (GPIO 37)
+#define LLM_UART_RX_PIN         38    // Tab5 M5-BUS RX (GPIO 38)
 #define LLM_UART_BAUDRATE       115200
 
 // I2C Internal Bus (RX8130CE RTC, GT911 Touch, INA226)
@@ -41,8 +41,8 @@
 // ==========================================
 // 3. News & RSS Feed Settings
 // ==========================================
-#define RSS_FETCH_INTERVAL_MS   (5 * 60 * 1000) // 5分ごとに自動更新
-#define NEWS_AUTO_SLIDE_SEC     10              // 10秒ごとに記事を自動スライド
+#define RSS_FETCH_INTERVAL_MS   (60 * 60 * 1000) // 1時間に1回自動更新 (バッテリー節電)
+#define NEWS_AUTO_SLIDE_SEC     10               // 10秒ごとに記事を自動スライド
 #define MAX_NEWS_ITEMS_PER_CAT  10
 #define MAX_NEWS_CATEGORIES     4
 
@@ -55,14 +55,14 @@
 // ==========================================
 // 4. FreeRTOS Task Priorities & Stack Sizes
 // ==========================================
-#define TASK_GUI_STACK_SIZE     (16 * 1024)
+#define TASK_GUI_STACK_SIZE     (24 * 1024)
 #define TASK_GUI_PRIORITY       5
 #define TASK_GUI_CORE           1
 
-#define TASK_NET_STACK_SIZE     (16 * 1024)
-#define TASK_NET_PRIORITY       3
+#define TASK_NET_STACK_SIZE     (24 * 1024)
+#define TASK_NET_PRIORITY       1
 #define TASK_NET_CORE           0
 
-#define TASK_LLM_STACK_SIZE     (12 * 1024)
+#define TASK_LLM_STACK_SIZE     (16 * 1024)
 #define TASK_LLM_PRIORITY       4
 #define TASK_LLM_CORE           0

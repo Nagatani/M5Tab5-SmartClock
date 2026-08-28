@@ -1,8 +1,16 @@
 #include "llm_module_wrapper.h"
 #include "intent_dispatcher.h"
+#include "hal/bsp_tab5.h"
 #include <ArduinoJson.h>
 
 #define TTS_QUEUE_MAX_ITEMS 8
+
+// スキャン対象のピンペア
+struct UartPinCandidate {
+    int rx;
+    int tx;
+    const char* label;
+};
 
 LLMModuleWrapper::LLMModuleWrapper() {
     _ttsQueue = xQueueCreate(TTS_QUEUE_MAX_ITEMS, sizeof(TTSCommand*));
@@ -11,32 +19,45 @@ LLMModuleWrapper::LLMModuleWrapper() {
 bool LLMModuleWrapper::init() {
     Serial.println("[LLM] Initializing M5Stack LLM Module via UART...");
 
-    // Tab5 -> LLM Module シリアル初期化
+    // M5Unified から自動取得を試行
+    int autoRx = M5.getPin(m5::pin_name_t::port_c_rxd);
+    int autoTx = M5.getPin(m5::pin_name_t::port_c_txd);
+    Serial.printf("[LLM] M5Unified Port.C Pin: RX=%d, TX=%d\n", autoRx, autoTx);
+
     static HardwareSerial llmSerial(LLM_UART_NUM);
     _serial = &llmSerial;
-    
-    // まずデフォルト設定ピンで開始
-    _serial->begin(LLM_UART_BAUDRATE, SERIAL_8N1, LLM_UART_RX_PIN, LLM_UART_TX_PIN);
-    _module.begin(_serial);
 
-    // モジュール接続確認 (Ping)
-    Serial.printf("[LLM] Checking module response on TX:%d RX:%d...\n", LLM_UART_TX_PIN, LLM_UART_RX_PIN);
-    
-    int pingResult = _module.sys.ping();
-    if (pingResult != 0) {
-        // Grove Port ピン (TX:1, RX:3) でも試行
-        Serial.println("[LLM] Not responding on default pins, trying Grove Port (TX:1, RX:3)...");
-        _serial->begin(LLM_UART_BAUDRATE, SERIAL_8N1, 3, 1);
+    UartPinCandidate candidates[] = {
+        {autoRx, autoTx, "M5Unified Port.C Auto"},
+        {38, 37, "Tab5 M5-BUS (RX:38, TX:37)"},
+        {37, 38, "Tab5 M5-BUS Inverted (RX:37, TX:38)"},
+        {20, 19, "Tab5 Port.C (RX:20, TX:19)"},
+        {19, 20, "Tab5 Port.C Inverted (RX:19, TX:20)"},
+        {3, 1, "Grove Port (RX:3, TX:1)"},
+        {1, 3, "Grove Port Inverted (RX:1, TX:3)"}
+    };
+    size_t numCandidates = sizeof(candidates) / sizeof(candidates[0]);
+
+    for (size_t i = 0; i < numCandidates; ++i) {
+        if (candidates[i].rx <= 0 || candidates[i].tx <= 0) continue;
+
+        Serial.printf("[LLM] Trying %s (RX:%d, TX:%d)...\n", 
+                      candidates[i].label, candidates[i].rx, candidates[i].tx);
+        
+        _serial->begin(LLM_UART_BAUDRATE, SERIAL_8N1, candidates[i].rx, candidates[i].tx);
+        delay(50);
         _module.begin(_serial);
-        pingResult = _module.sys.ping();
+
+        // checkConnection() または sys.ping() で応答確認
+        if (_module.checkConnection() || _module.sys.ping() == 0) {
+            Serial.printf("[LLM] Connected successfully on %s!\n", candidates[i].label);
+            _isReady = true;
+            break;
+        }
     }
 
-    if (pingResult == 0) {
-        Serial.println("[LLM] LLM Module Ping OK!");
-        _isReady = true;
-    } else {
-        Serial.println("[LLM] LLM Module booting / not responding. Will keep retrying in background task...");
-        _isReady = false;
+    if (!_isReady) {
+        Serial.println("[LLM] Connection check failed. Will retry in background task...");
         return false;
     }
 
@@ -87,13 +108,32 @@ void LLMModuleWrapper::processTTSQueue() {
 
 void LLMModuleWrapper::update() {
     static unsigned long lastRetryMs = 0;
+    static int retryCandidateIdx = 0;
 
     if (!_isReady) {
-        // 未初期化の場合は 2 秒ごとにリトライ (Linux ブート完了を待つ)
+        // 未初期化の場合は 2 秒ごとにリトライ
         if (millis() - lastRetryMs > 2000) {
             lastRetryMs = millis();
-            if (_serial && _module.sys.ping() == 0) {
-                Serial.println("[LLM] LLM Module booted up! Initializing services...");
+            
+            UartPinCandidate candidates[] = {
+                {38, 37, "Tab5 M5-BUS (RX:38, TX:37)"},
+                {37, 38, "Tab5 M5-BUS Inverted (RX:37, TX:38)"},
+                {20, 19, "Tab5 Port.C (RX:20, TX:19)"},
+                {19, 20, "Tab5 Port.C Inverted (RX:19, TX:20)"},
+                {3, 1, "Grove Port (RX:3, TX:1)"},
+                {1, 3, "Grove Port Inverted (RX:1, TX:3)"}
+            };
+            size_t numCandidates = sizeof(candidates) / sizeof(candidates[0]);
+
+            auto& cand = candidates[retryCandidateIdx];
+            retryCandidateIdx = (retryCandidateIdx + 1) % numCandidates;
+
+            _serial->begin(LLM_UART_BAUDRATE, SERIAL_8N1, cand.rx, cand.tx);
+            delay(50);
+            _module.begin(_serial);
+
+            if (_module.checkConnection() || _module.sys.ping() == 0) {
+                Serial.printf("[LLM] LLM Module detected on %s! Initializing...\n", cand.label);
                 init();
             }
         }

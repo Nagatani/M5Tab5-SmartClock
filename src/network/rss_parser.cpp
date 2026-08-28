@@ -1,4 +1,5 @@
 #include "rss_parser.h"
+#include <esp_heap_caps.h>
 
 const char* RSSParser::getCategoryUrl(NewsCategoryType type) {
     switch (type) {
@@ -81,38 +82,37 @@ bool RSSParser::fetchCategory(NewsCategoryType catType, NewsCategoryData& outDat
     outData.rssUrl = url;
     outData.itemCount = 0;
 
-    Serial.printf("[RSS] Fetching %s RSS: %s\n", outData.name.c_str(), url);
-    Serial.printf("[RSS] Free Internal Heap: %u bytes, Free PSRAM: %u bytes\n", 
-                  (unsigned int)ESP.getFreeHeap(), (unsigned int)ESP.getFreePsram());
+    Serial.printf("\n[RSS] Fetching %s RSS: %s\n", outData.name.c_str(), url);
 
-    WiFiClientSecure client;
-    client.setInsecure(); // SSL証明書検証スキップ
-    // TLS バッファサイズを縮小して内部 SRAM 不足を防止 (Rx: 4096, Tx: 1024)
-    client.setBufferSizes(4096, 1024);
-    client.setTimeout(10);
+    String payload = "";
 
-    HTTPClient http;
-    http.setUserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko)");
-    http.setTimeout(10000);
-    http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
+    // スコープを限定して WiFiClientSecure と HTTPClient を確実に即時解放
+    {
+        WiFiClientSecure client;
+        client.setInsecure(); // SSL証明書検証スキップ
+        client.setTimeout(12);
 
-    if (!http.begin(client, url)) {
-        Serial.printf("[RSS] HTTP begin failed for %s\n", url);
-        client.stop();
-        return false;
-    }
+        HTTPClient http;
+        http.setUserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64)");
+        http.setTimeout(10000);
+        http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
 
-    int httpCode = http.GET();
-    if (httpCode != HTTP_CODE_OK) {
-        Serial.printf("[RSS] HTTP GET failed, error code: %d\n", httpCode);
+        if (!http.begin(client, url)) {
+            Serial.printf("[RSS] HTTP begin failed for %s\n", url);
+            return false;
+        }
+
+        int httpCode = http.GET();
+        if (httpCode != HTTP_CODE_OK) {
+            Serial.printf("[RSS] HTTP GET failed, error code: %d\n", httpCode);
+            http.end();
+            return false;
+        }
+
+        payload = http.getString();
         http.end();
         client.stop();
-        return false;
     }
-
-    String payload = http.getString();
-    http.end();
-    client.stop();
 
     if (payload.length() == 0) {
         Serial.println("[RSS] Empty response received.");
@@ -162,7 +162,7 @@ bool RSSParser::fetchCategory(NewsCategoryType catType, NewsCategoryData& outDat
     outData.itemCount = count;
     outData.isLoaded = (count > 0);
 
-    Serial.printf("[RSS] Successfully parsed %d items for category %s\n", count, outData.name.c_str());
+    Serial.printf("[RSS] Successfully parsed %d items for category %s\n", (int)count, outData.name.c_str());
     return true;
 }
 
@@ -173,7 +173,8 @@ bool RSSParser::fetchAllCategories(NewsCategoryData categories[CAT_MAX]) {
         if (!success) {
             allSuccess = false;
         }
-        delay(300);
+        // SSLセッションおよびソケットリソース解放のための十分な待機時間 (1.5秒)
+        vTaskDelay(pdMS_TO_TICKS(1500));
     }
     return allSuccess;
 }

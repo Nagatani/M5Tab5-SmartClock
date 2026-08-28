@@ -15,7 +15,8 @@ bool BSPTab5::init() {
 
     // M5GFX ディスプレイとタッチの初期化確認
     M5.Display.init();
-    M5.Display.setRotation(1); // 横向き Landscape (1280x720)
+    // 画面の向き: 横向き反転 (180度回転 -> 正しい正位置表示 1280x720)
+    M5.Display.setRotation(3); 
     M5.Display.setBrightness(180);
 
     // 電源安定化待ち

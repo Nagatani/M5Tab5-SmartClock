@@ -2,6 +2,7 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 #include <freertos/semphr.h>
+#include <esp_heap_caps.h>
 
 #include "config.h"
 #include "types.h"
@@ -19,7 +20,18 @@
 static SystemStatus g_systemStatus;
 static SemaphoreHandle_t g_newsMutex = nullptr;
 static NewsCategoryData g_newsCategories[CAT_MAX];
-static bool g_requestRssUpdate = true;
+static bool g_requestFullRssUpdate = true;
+static int g_requestSingleCatFetch = -1;
+
+// PSRAM タスクスタック用バッファ
+static StaticTask_t g_taskGuiBuffer;
+static StackType_t* g_taskGuiStack = nullptr;
+
+static StaticTask_t g_taskNetBuffer;
+static StackType_t* g_taskNetStack = nullptr;
+
+static StaticTask_t g_taskLlmBuffer;
+static StackType_t* g_taskLlmStack = nullptr;
 
 // ==========================================
 // コールバック関数群
@@ -46,6 +58,14 @@ void onSpeakNewsRequested(const NewsItem& item) {
     if (UIManager::getInstance().lock(pdMS_TO_TICKS(100))) {
         UIClock::getInstance().setVoiceSubtitle("「ニュースを読んで」", "「" + item.title + "」を読み上げ中");
         UIManager::getInstance().unlock();
+    }
+}
+
+// カテゴリ切替時 (UI / 音声)
+void onCategoryChanged(NewsCategoryType catType) {
+    Serial.printf("[Main] Category Switched to: %d\n", (int)catType);
+    if (!g_newsCategories[catType].isLoaded) {
+        g_requestSingleCatFetch = (int)catType;
     }
 }
 
@@ -149,7 +169,7 @@ void Task_GUI(void* pvParameters) {
     }
 }
 
-// 2. ネットワーク & RSS パースタスク (Core 0)
+// 2. ネットワーク & RSS パースタスク (Core 0, Priority 1)
 void Task_Network(void* pvParameters) {
     WiFiManager::getInstance().connect();
     
@@ -158,8 +178,8 @@ void Task_Network(void* pvParameters) {
         g_systemStatus.ntpSynced = true;
     }
 
-    TickType_t lastRssFetch = 0;
     TickType_t lastNtpSync = xTaskGetTickCount();
+    TickType_t lastFullRssFetch = 0;
 
     while (1) {
         // Wi-Fi 状態更新 & 切断時の自動再接続
@@ -177,14 +197,14 @@ void Task_Network(void* pvParameters) {
             }
         }
 
-        // RSS フィードの定期フェッチ (5分ごと、または要求時)
-        if (g_requestRssUpdate || (now - lastRssFetch) >= pdMS_TO_TICKS(RSS_FETCH_INTERVAL_MS)) {
-            if (WiFiManager::getInstance().isConnected()) {
-                Serial.println("[NetTask] Fetching all RSS categories...");
+        // 1時間に1回の全カテゴリ定期取得 (または起動時)
+        if (WiFiManager::getInstance().isConnected()) {
+            if (g_requestFullRssUpdate || (now - lastFullRssFetch) >= pdMS_TO_TICKS(RSS_FETCH_INTERVAL_MS)) {
+                Serial.println("\n[NetTask] Fetching RSS feeds (1 hour interval)...");
                 for (int i = 0; i < CAT_MAX; ++i) {
                     NewsCategoryData tempCat;
                     if (RSSParser::getInstance().fetchCategory((NewsCategoryType)i, tempCat)) {
-                        if (xSemaphoreTake(g_newsMutex, portMAX_DELAY) == pdTRUE) {
+                        if (xSemaphoreTake(g_newsMutex, pdMS_TO_TICKS(500)) == pdTRUE) {
                             g_newsCategories[i] = tempCat;
                             xSemaphoreGive(g_newsMutex);
                         }
@@ -194,10 +214,28 @@ void Task_Network(void* pvParameters) {
                             UIManager::getInstance().unlock();
                         }
                     }
-                    vTaskDelay(pdMS_TO_TICKS(300));
+                    // ソケットクローズと DMA メモリ完全解放のための 3 秒インターバル
+                    vTaskDelay(pdMS_TO_TICKS(3000));
                 }
-                lastRssFetch = now;
-                g_requestRssUpdate = false;
+                lastFullRssFetch = xTaskGetTickCount();
+                g_requestFullRssUpdate = false;
+                Serial.println("[NetTask] Hourly RSS fetch completed. Next update in 1 hour.");
+            }
+            // 個別カテゴリの単発要求
+            else if (g_requestSingleCatFetch >= 0 && g_requestSingleCatFetch < CAT_MAX) {
+                int catIdx = g_requestSingleCatFetch;
+                g_requestSingleCatFetch = -1;
+                NewsCategoryData tempCat;
+                if (RSSParser::getInstance().fetchCategory((NewsCategoryType)catIdx, tempCat)) {
+                    if (xSemaphoreTake(g_newsMutex, pdMS_TO_TICKS(500)) == pdTRUE) {
+                        g_newsCategories[catIdx] = tempCat;
+                        xSemaphoreGive(g_newsMutex);
+                    }
+                    if (UIManager::getInstance().lock(pdMS_TO_TICKS(100))) {
+                        UINews::getInstance().updateCategoryData((NewsCategoryType)catIdx, tempCat);
+                        UIManager::getInstance().unlock();
+                    }
+                }
             }
         }
 
@@ -237,42 +275,42 @@ void setup() {
     // 3. UI コールバック登録
     UIClock::getInstance().setOnSpeakTimeCallback(onSpeakTimeRequested);
     UINews::getInstance().setOnSpeakNewsCallback(onSpeakNewsRequested);
+    UINews::getInstance().setOnCategoryChangeCallback(onCategoryChanged);
 
-    // 4. FreeRTOS タスク生成
-    xTaskCreatePinnedToCore(
-        Task_GUI,
-        "Task_GUI",
-        TASK_GUI_STACK_SIZE,
-        NULL,
-        TASK_GUI_PRIORITY,
-        NULL,
-        TASK_GUI_CORE
-    );
+    // 4. FreeRTOS タスク生成 (スタックを PSRAM に割り当て)
+    g_taskGuiStack = (StackType_t*)heap_caps_malloc(TASK_GUI_STACK_SIZE, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    g_taskNetStack = (StackType_t*)heap_caps_malloc(TASK_NET_STACK_SIZE, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    g_taskLlmStack = (StackType_t*)heap_caps_malloc(TASK_LLM_STACK_SIZE, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
 
-    xTaskCreatePinnedToCore(
-        Task_Network,
-        "Task_Network",
-        TASK_NET_STACK_SIZE,
-        NULL,
-        TASK_NET_PRIORITY,
-        NULL,
-        TASK_NET_CORE
-    );
+    if (g_taskGuiStack && g_taskNetStack && g_taskLlmStack) {
+        xTaskCreateStaticPinnedToCore(
+            Task_GUI, "Task_GUI", TASK_GUI_STACK_SIZE, NULL, TASK_GUI_PRIORITY,
+            g_taskGuiStack, &g_taskGuiBuffer, TASK_GUI_CORE
+        );
 
-    xTaskCreatePinnedToCore(
-        Task_LLM_Com,
-        "Task_LLM_Com",
-        TASK_LLM_STACK_SIZE,
-        NULL,
-        TASK_LLM_PRIORITY,
-        NULL,
-        TASK_LLM_CORE
-    );
+        xTaskCreateStaticPinnedToCore(
+            Task_Network, "Task_Network", TASK_NET_STACK_SIZE, NULL, 1,
+            g_taskNetStack, &g_taskNetBuffer, TASK_NET_CORE
+        );
 
-    Serial.println("[Main] All tasks started successfully.");
+        xTaskCreateStaticPinnedToCore(
+            Task_LLM_Com, "Task_LLM_Com", TASK_LLM_STACK_SIZE, NULL, TASK_LLM_PRIORITY,
+            g_taskLlmStack, &g_taskLlmBuffer, TASK_LLM_CORE
+        );
+        Serial.println("[Main] All tasks started in PSRAM successfully.");
+    } else {
+        // フォールバック
+        xTaskCreatePinnedToCore(Task_GUI, "Task_GUI", TASK_GUI_STACK_SIZE, NULL, TASK_GUI_PRIORITY, NULL, TASK_GUI_CORE);
+        xTaskCreatePinnedToCore(Task_Network, "Task_Network", TASK_NET_STACK_SIZE, NULL, 1, NULL, TASK_NET_CORE);
+        xTaskCreatePinnedToCore(Task_LLM_Com, "Task_LLM_Com", TASK_LLM_STACK_SIZE, NULL, TASK_LLM_PRIORITY, NULL, TASK_LLM_CORE);
+        Serial.println("[Main] Tasks started in Internal SRAM (Fallback).");
+    }
+
+    Serial.printf("[Main] Free Internal Heap: %u bytes, Free PSRAM: %u bytes\n", 
+                  (unsigned int)heap_caps_get_free_size(MALLOC_CAP_INTERNAL), 
+                  (unsigned int)ESP.getFreePsram());
 }
 
 void loop() {
-    // FreeRTOS タスク駆動のため Arduino メインループは休止
     vTaskDelay(pdMS_TO_TICKS(1000));
 }
