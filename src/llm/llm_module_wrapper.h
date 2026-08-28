@@ -37,13 +37,12 @@ private:
     QueueHandle_t _ttsQueue = nullptr;
 
     bool _isReady = false;
-    int _kwsWorkId = -1;
-    int _asrWorkId = -1;
-    int _ttsWorkId = -1;
-    int _llmWorkId = -1;
+    String _kwsWorkId = "";
+    String _asrWorkId = "";
+    String _ttsWorkId = "";
+    String _llmWorkId = "";
 
     void (*_onVoiceEventCallback)(const VoiceEvent&) = nullptr;
 
     void processTTSQueue();
-    void handleASRResponse(const String& rawJson);
 };
