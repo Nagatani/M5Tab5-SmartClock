@@ -82,16 +82,23 @@ bool RSSParser::fetchCategory(NewsCategoryType catType, NewsCategoryData& outDat
     outData.itemCount = 0;
 
     Serial.printf("[RSS] Fetching %s RSS: %s\n", outData.name.c_str(), url);
+    Serial.printf("[RSS] Free Internal Heap: %u bytes, Free PSRAM: %u bytes\n", 
+                  (unsigned int)ESP.getFreeHeap(), (unsigned int)ESP.getFreePsram());
 
     WiFiClientSecure client;
-    client.setInsecure(); // SSL証明書検証スキップによる高速化
+    client.setInsecure(); // SSL証明書検証スキップ
+    // TLS バッファサイズを縮小して内部 SRAM 不足を防止 (Rx: 4096, Tx: 1024)
+    client.setBufferSizes(4096, 1024);
+    client.setTimeout(10);
 
     HTTPClient http;
-    http.setUserAgent("Mozilla/5.0 (M5StackTab5-SmartClock)");
-    http.setTimeout(8000);
+    http.setUserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko)");
+    http.setTimeout(10000);
+    http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
 
     if (!http.begin(client, url)) {
         Serial.printf("[RSS] HTTP begin failed for %s\n", url);
+        client.stop();
         return false;
     }
 
@@ -99,11 +106,13 @@ bool RSSParser::fetchCategory(NewsCategoryType catType, NewsCategoryData& outDat
     if (httpCode != HTTP_CODE_OK) {
         Serial.printf("[RSS] HTTP GET failed, error code: %d\n", httpCode);
         http.end();
+        client.stop();
         return false;
     }
 
     String payload = http.getString();
     http.end();
+    client.stop();
 
     if (payload.length() == 0) {
         Serial.println("[RSS] Empty response received.");
@@ -164,7 +173,7 @@ bool RSSParser::fetchAllCategories(NewsCategoryData categories[CAT_MAX]) {
         if (!success) {
             allSuccess = false;
         }
-        delay(200);
+        delay(300);
     }
     return allSuccess;
 }
