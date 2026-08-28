@@ -38,18 +38,18 @@ bool LLMModuleWrapper::init() {
     m5_module_llm::ApiKwsSetupConfig_t kwsConfig;
     kwsConfig.kws = "hi m5";
     _kwsWorkId = _module.kws.setup(kwsConfig, "kws_setup");
-    Serial.printf("[LLM] KWS Setup ID: %d\n", _kwsWorkId);
+    Serial.printf("[LLM] KWS Setup ID: %s\n", _kwsWorkId.c_str());
 
     // 2. ASR (音声認識 - 日本語) 初期化
     m5_module_llm::ApiAsrSetupConfig_t asrConfig;
-    asrConfig.language = "ja_JP";
-    _asrWorkId = _module.asr.setup(asrConfig, "asr_setup");
-    Serial.printf("[LLM] ASR Setup ID: %d\n", _asrWorkId);
+    asrConfig.input = {"sys.pcm", _kwsWorkId};
+    _asrWorkId = _module.asr.setup(asrConfig, "asr_setup", "ja_JP");
+    Serial.printf("[LLM] ASR Setup ID: %s\n", _asrWorkId.c_str());
 
     // 3. TTS (音声合成 - 日本語) 初期化
     m5_module_llm::ApiTtsSetupConfig_t ttsConfig;
-    _ttsWorkId = _module.tts.setup(ttsConfig, "tts_setup");
-    Serial.printf("[LLM] TTS Setup ID: %d\n", _ttsWorkId);
+    _ttsWorkId = _module.tts.setup(ttsConfig, "tts_setup", "ja_JP");
+    Serial.printf("[LLM] TTS Setup ID: %s\n", _ttsWorkId.c_str());
 
     return true;
 }
@@ -66,14 +66,14 @@ bool LLMModuleWrapper::enqueueTTS(const String& text, bool highPriority) {
 }
 
 void LLMModuleWrapper::processTTSQueue() {
-    if (!_isReady || !_ttsQueue) return;
+    if (!_isReady || !_ttsQueue || _ttsWorkId.length() == 0) return;
 
     TTSCommand* cmd = nullptr;
     if (xQueueReceive(_ttsQueue, &cmd, 0) == pdTRUE && cmd != nullptr) {
         Serial.printf("[LLM] Playing TTS: %s\n", cmd->text.c_str());
         
         // M5ModuleLLM TTS 音声合成リクエスト
-        _module.tts.inference(_ttsWorkId, cmd->text.c_str());
+        _module.tts.inference(_ttsWorkId, cmd->text);
 
         delete cmd;
     }
@@ -91,26 +91,44 @@ void LLMModuleWrapper::update() {
     // UART からのイベント受信とパース
     _module.update();
 
-    // ASR 音声認識結果のチェック
-    if (_asrWorkId >= 0 && _module.asr.hasResult(_asrWorkId)) {
-        auto result = _module.asr.getResult(_asrWorkId);
-        if (result.is_final && strlen(result.text) > 0) {
-            String recognized = String(result.text);
-            Serial.printf("[LLM] ASR Recognized: %s\n", recognized.c_str());
+    // ASR / KWS 受信メッセージの処理
+    for (auto& msg : _module.msg.responseMsgList) {
+        if (_asrWorkId.length() > 0 && msg.work_id == _asrWorkId) {
+            JsonDocument doc;
+            DeserializationError err = deserializeJson(doc, msg.raw_msg);
+            if (err == DeserializationError::Ok) {
+                // ASR 認識テキストの抽出 (delta または text)
+                String recognizedText = "";
+                if (doc["data"].is<JsonObject>()) {
+                    if (doc["data"]["delta"].is<const char*>()) {
+                        recognizedText = doc["data"]["delta"].as<String>();
+                    } else if (doc["data"]["text"].is<const char*>()) {
+                        recognizedText = doc["data"]["text"].as<String>();
+                    }
+                }
 
-            NewsCategoryType cat = CAT_TOP;
-            VoiceIntentType intent = IntentDispatcher::getInstance().parseIntent(recognized, cat);
+                recognizedText.trim();
+                if (recognizedText.length() > 0) {
+                    Serial.printf("[LLM] ASR Recognized: %s\n", recognizedText.c_str());
 
-            VoiceEvent ev;
-            ev.intent = intent;
-            ev.recognizedText = recognized;
-            ev.timestamp = millis();
+                    NewsCategoryType cat = CAT_TOP;
+                    VoiceIntentType intent = IntentDispatcher::getInstance().parseIntent(recognizedText, cat);
 
-            if (_onVoiceEventCallback) {
-                _onVoiceEventCallback(ev);
+                    VoiceEvent ev;
+                    ev.intent = intent;
+                    ev.recognizedText = recognizedText;
+                    ev.timestamp = millis();
+
+                    if (_onVoiceEventCallback) {
+                        _onVoiceEventCallback(ev);
+                    }
+                }
             }
         }
     }
+
+    // 処理済みメッセージリストのクリア
+    _module.msg.responseMsgList.clear();
 
     // TTS キューの処理
     processTTSQueue();
