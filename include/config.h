@@ -23,9 +23,10 @@
 #define SCREEN_WIDTH            1280
 #define SCREEN_HEIGHT           720
 
-// Display Split Layout
-#define CLOCK_PANEL_WIDTH       704   // 左側 55%
-#define NEWS_PANEL_WIDTH        576   // 右側 45%
+// Display Top / Bottom Split Layout
+#define CLOCK_PANEL_HEIGHT      415   // 上部メイン時計 (横幅1280pxいっぱい x 415px)
+#define BOTTOM_PANEL_HEIGHT     290   // 下部情報エリア (290px)
+#define BOTTOM_PANEL_WIDTH      625   // 下部左右各パネル幅 (625px x 2 + 余白)
 
 // LLM Module UART Connection (M5-BUS: TX=37, RX=38)
 #define LLM_UART_NUM            1

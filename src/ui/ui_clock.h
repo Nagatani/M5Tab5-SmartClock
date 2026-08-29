@@ -29,25 +29,24 @@ private:
     UIClock() = default;
     ~UIClock() = default;
 
-    lv_obj_t* _panel = nullptr;
-    lv_obj_t* _clockCanvas = nullptr; // 3x 拡大表示用キャンバス
+    // 上部メイン時計パネル (1260 x 405)
+    lv_obj_t* _panelClock = nullptr;
+    lv_obj_t* _clockCanvas = nullptr;
     lv_color_t* _canvasBuf = nullptr;
     
     lv_obj_t* _lblDate = nullptr;
     lv_obj_t* _lblDayOfWeek = nullptr;
     
-    // Status Bar Widgets
+    // ステータスバー
     lv_obj_t* _lblWifiStatus = nullptr;
     lv_obj_t* _lblRtcStatus = nullptr;
     lv_obj_t* _lblLlmStatus = nullptr;
     lv_obj_t* _lblBattery = nullptr;
 
-    // Subtitle Widgets
-    lv_obj_t* _panelSubtitle = nullptr;
+    // 下部右側 LLM 音声対話パネル (625 x 285)
+    lv_obj_t* _panelLlm = nullptr;
     lv_obj_t* _lblUserVoice = nullptr;
     lv_obj_t* _lblAssistantReply = nullptr;
-
-    // Speak Button
     lv_obj_t* _btnSpeakTime = nullptr;
 
     void (*_onSpeakTimeCallback)() = nullptr;
