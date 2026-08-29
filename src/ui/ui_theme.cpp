@@ -96,11 +96,17 @@ bool UITheme::loadJapaneseFontFromSD(const char* ttfPath) {
     static lv_font_t* font48 = lv_tiny_ttf_create_data(_fontDataBuffer, _fontDataSize, 48);
 
     if (font14 && font18 && font24 && font48) {
+        // LVGL 標準シンボルアイコン (LV_SYMBOL_WIFI, LV_SYMBOL_BATTERY 等) をフォールバックとして結合
+        font14->fallback = &lv_font_montserrat_14;
+        font18->fallback = &lv_font_montserrat_18;
+        font24->fallback = &lv_font_montserrat_24;
+        font48->fallback = &lv_font_montserrat_48;
+
         font_small_14 = font14;
         font_body_18  = font18;
         font_title_24 = font24;
         font_clock_48 = font48;
-        Serial.println("[Font] Japanese TTF font loaded successfully (14px, 18px, 24px, 48px)!");
+        Serial.println("[Font] Japanese TTF font loaded with Montserrat symbol fallbacks successfully!");
         return true;
     }
 
