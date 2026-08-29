@@ -5,6 +5,10 @@ static const char* DAY_NAMES_JA[] = {
     "日曜日", "月曜日", "火曜日", "水曜日", "木曜日", "金曜日", "土曜日"
 };
 
+static const char* DAY_NAMES_EN[] = {
+    "SUNDAY", "MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY"
+};
+
 bool RTCManager::init() {
     // M5Unified 内蔵 RTC の初期化確認
     if (M5.Rtc.isEnabled()) {
@@ -84,11 +88,11 @@ FormattedDateTime RTCManager::getCurrentDateTime() {
         result.dayOfWeek = timeinfo.tm_wday;
 
         snprintf(result.timeStr, sizeof(result.timeStr), "%02d:%02d:%02d", result.hour, result.minute, result.second);
-        snprintf(result.dateStr, sizeof(result.dateStr), "%04d年%02d月%02d日", result.year, result.month, result.day);
-        snprintf(result.dayOfWeekStr, sizeof(result.dayOfWeekStr), "%s", DAY_NAMES_JA[result.dayOfWeek % 7]);
+        snprintf(result.dateStr, sizeof(result.dateStr), "%04d.%02d.%02d", result.year, result.month, result.day);
+        snprintf(result.dayOfWeekStr, sizeof(result.dayOfWeekStr), "%s", DAY_NAMES_EN[result.dayOfWeek % 7]);
     } else {
         snprintf(result.timeStr, sizeof(result.timeStr), "--:--:--");
-        snprintf(result.dateStr, sizeof(result.dateStr), "----年--月--日");
+        snprintf(result.dateStr, sizeof(result.dateStr), "----.--.--");
         snprintf(result.dayOfWeekStr, sizeof(result.dayOfWeekStr), "---");
     }
 
@@ -101,9 +105,10 @@ String RTCManager::getTTSDateTimeString() {
     int hour12 = dt.hour % 12;
     if (hour12 == 0) hour12 = 12;
 
+    const char* dayJa = DAY_NAMES_JA[dt.dayOfWeek % 7];
     char buffer[128];
     snprintf(buffer, sizeof(buffer), "現在の時刻は、%s%d時%d分です。本日は%d月%d日、%sです。",
-             ampm.c_str(), hour12, dt.minute, dt.month, dt.day, dt.dayOfWeekStr);
+             ampm.c_str(), hour12, dt.minute, dt.month, dt.day, dayJa);
 
     return String(buffer);
 }

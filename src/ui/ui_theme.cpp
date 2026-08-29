@@ -6,11 +6,14 @@ lv_style_t UITheme::style_panel;
 lv_style_t UITheme::style_btn_primary;
 lv_style_t UITheme::style_tab_btn;
 
+// 日本語フォント (初期フォールバックはMontserrat)
 const lv_font_t* UITheme::font_small_14 = &lv_font_montserrat_14;
 const lv_font_t* UITheme::font_body_18  = &lv_font_montserrat_18;
 const lv_font_t* UITheme::font_title_24 = &lv_font_montserrat_24;
-const lv_font_t* UITheme::font_date_28  = &lv_font_montserrat_24;
-const lv_font_t* UITheme::font_clock_64 = &lv_font_montserrat_48;
+
+// デジタル時計・日付用 (内蔵 Montserrat フォント: 高速・100% 安定)
+const lv_font_t* UITheme::font_clock_large = &lv_font_montserrat_48;
+const lv_font_t* UITheme::font_date_large  = &lv_font_montserrat_24;
 
 uint8_t* UITheme::_fontDataBuffer = nullptr;
 size_t UITheme::_fontDataSize = 0;
@@ -90,27 +93,16 @@ bool UITheme::loadJapaneseFontFromSD(const char* ttfPath) {
         return false;
     }
 
-    // Tiny_TTF による各フォントサイズの安全な生成 (14px, 18px, 24px, 28px, 64px)
+    // Tiny_TTF による安全で軽量な 3 サイズのみ生成 (14px, 18px, 24px)
     static lv_font_t* font14 = lv_tiny_ttf_create_data(_fontDataBuffer, _fontDataSize, 14);
     static lv_font_t* font18 = lv_tiny_ttf_create_data(_fontDataBuffer, _fontDataSize, 18);
     static lv_font_t* font24 = lv_tiny_ttf_create_data(_fontDataBuffer, _fontDataSize, 24);
-    static lv_font_t* font28 = lv_tiny_ttf_create_data(_fontDataBuffer, _fontDataSize, 28);
-    static lv_font_t* font64 = lv_tiny_ttf_create_data(_fontDataBuffer, _fontDataSize, 64);
 
-    if (font14 && font18 && font24 && font28 && font64) {
-        // アイコン記号 (LV_SYMBOL_...) のフォールバックを設定
-        font14->fallback = &lv_font_montserrat_14;
-        font18->fallback = &lv_font_montserrat_18;
-        font24->fallback = &lv_font_montserrat_24;
-        font28->fallback = &lv_font_montserrat_24;
-        font64->fallback = &lv_font_montserrat_48;
-
+    if (font14 && font18 && font24) {
         font_small_14 = font14;
         font_body_18  = font18;
         font_title_24 = font24;
-        font_date_28  = font28;
-        font_clock_64 = font64;
-        Serial.println("[Font] Japanese TTF font loaded successfully (14px, 18px, 24px, 28px, 64px)!");
+        Serial.println("[Font] Japanese TTF font loaded successfully (14px, 18px, 24px)!");
         return true;
     }
 

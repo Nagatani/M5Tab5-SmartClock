@@ -30,7 +30,9 @@ private:
     ~UIClock() = default;
 
     lv_obj_t* _panel = nullptr;
-    lv_obj_t* _lblTime = nullptr;
+    lv_obj_t* _clockCanvas = nullptr; // 3x 拡大表示用キャンバス
+    lv_color_t* _canvasBuf = nullptr;
+    
     lv_obj_t* _lblDate = nullptr;
     lv_obj_t* _lblDayOfWeek = nullptr;
     

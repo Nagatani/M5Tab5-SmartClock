@@ -28,12 +28,14 @@ public:
     static lv_style_t style_btn_primary;
     static lv_style_t style_tab_btn;
 
-    // 日本語フォントポインタ
+    // 日本語フォント (ニュース・字幕用: 14px, 18px, 24px の安全な3サイズ)
     static const lv_font_t* font_small_14;
     static const lv_font_t* font_body_18;
     static const lv_font_t* font_title_24;
-    static const lv_font_t* font_date_28;   // 拡大日付・曜日用 (28px)
-    static const lv_font_t* font_clock_64;  // 特大デジタル時計用 (64px)
+
+    // デジタル時計・日付用 (LVGL内蔵の高速・高安定 Montserrat フォント)
+    static const lv_font_t* font_clock_large; // 48px 内蔵フォント
+    static const lv_font_t* font_date_large;  // 24px 内蔵フォント
 
 private:
     static uint8_t* _fontDataBuffer;

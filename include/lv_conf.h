@@ -8,7 +8,7 @@
 /* M5GFX 向けに 16bit RGB565 の 2バイトをスワップ */
 #define LV_COLOR_16_SWAP 1
 
-/* Memory manager - 内部SRAMを圧迫しない安全な64KB */
+/* Memory manager - 安全な標準64KB */
 #define LV_MEM_CUSTOM 0
 #define LV_MEM_SIZE (64U * 1024U)
 
@@ -19,7 +19,7 @@
 #define LV_USE_LOG 1
 #define LV_LOG_LEVEL LV_LOG_LEVEL_WARN
 
-/* Fonts */
+/* Fonts (LVGL内蔵の高品質 Montserrat フォント) */
 #define LV_FONT_MONTSERRAT_14 1
 #define LV_FONT_MONTSERRAT_18 1
 #define LV_FONT_MONTSERRAT_24 1
