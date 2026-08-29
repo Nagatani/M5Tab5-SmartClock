@@ -16,10 +16,10 @@ void UIClock::init(lv_obj_t* parent) {
     lv_obj_clear_flag(_panel, LV_OBJ_FLAG_SCROLLABLE);
 
     // ==========================================
-    // 1. ステータスバー (上部)
+    // 1. ステータスバー (上部 y: 0〜32)
     // ==========================================
     lv_obj_t* statusBar = lv_obj_create(_panel);
-    lv_obj_set_size(statusBar, lv_pct(100), 40);
+    lv_obj_set_size(statusBar, lv_pct(100), 32);
     lv_obj_set_pos(statusBar, 0, 0);
     lv_obj_set_style_bg_opa(statusBar, LV_OPA_TRANSP, 0);
     lv_obj_set_style_border_width(statusBar, 0, 0);
@@ -48,43 +48,44 @@ void UIClock::init(lv_obj_t* parent) {
     lv_obj_set_style_text_color(_lblBattery, COLOR_TEXT_SECONDARY, 0);
 
     // ==========================================
-    // 2. 日付・曜日表示
+    // 2. 日付・曜日表示 (拡大: 28px フォント)
     // ==========================================
     _lblDate = lv_label_create(_panel);
-    lv_label_set_text(_lblDate, "2026年08月28日");
-    lv_obj_set_style_text_color(_lblDate, COLOR_TEXT_SECONDARY, 0);
-    lv_obj_set_style_text_font(_lblDate, UITheme::font_title_24, 0);
-    lv_obj_align(_lblDate, LV_ALIGN_TOP_LEFT, 10, 60);
+    lv_label_set_text(_lblDate, "2026年08月29日");
+    lv_obj_set_style_text_color(_lblDate, COLOR_TEXT_PRIMARY, 0);
+    lv_obj_set_style_text_font(_lblDate, UITheme::font_date_28, 0);
+    lv_obj_align(_lblDate, LV_ALIGN_TOP_LEFT, 10, 48);
 
     _lblDayOfWeek = lv_label_create(_panel);
-    lv_label_set_text(_lblDayOfWeek, "金曜日");
+    lv_label_set_text(_lblDayOfWeek, "(土曜日)");
     lv_obj_set_style_text_color(_lblDayOfWeek, COLOR_ACCENT_CYAN, 0);
-    lv_obj_set_style_text_font(_lblDayOfWeek, UITheme::font_title_24, 0);
+    lv_obj_set_style_text_font(_lblDayOfWeek, UITheme::font_date_28, 0);
     lv_obj_align_to(_lblDayOfWeek, _lblDate, LV_ALIGN_OUT_RIGHT_MID, 16, 0);
 
     // ==========================================
-    // 3. 超大型デジタル時計表示 (HH:MM:SS)
+    // 3. 特大デジタル時計表示 (64px 特大フォント)
     // ==========================================
     _lblTime = lv_label_create(_panel);
     lv_label_set_text(_lblTime, "12:00:00");
     lv_obj_set_style_text_color(_lblTime, COLOR_ACCENT_CYAN, 0);
-    lv_obj_set_style_text_font(_lblTime, UITheme::font_clock_48, 0);
-    lv_obj_align(_lblTime, LV_ALIGN_TOP_LEFT, 10, 110);
+    lv_obj_set_style_text_font(_lblTime, UITheme::font_clock_64, 0);
+    lv_obj_align(_lblTime, LV_ALIGN_TOP_LEFT, 10, 100);
 
     // ==========================================
-    // 4. 音声認識・対話字幕エリア
+    // 4. 音声対話・字幕エリア (コンパクト化: 高さ 140px)
     // ==========================================
     _panelSubtitle = lv_obj_create(_panel);
-    lv_obj_set_size(_panelSubtitle, lv_pct(100), 220);
-    lv_obj_align(_panelSubtitle, LV_ALIGN_BOTTOM_LEFT, 0, -90);
+    lv_obj_set_size(_panelSubtitle, lv_pct(100), 140);
+    lv_obj_align(_panelSubtitle, LV_ALIGN_BOTTOM_LEFT, 0, -80);
     lv_obj_set_style_bg_color(_panelSubtitle, lv_color_hex(0x181B22), 0);
     lv_obj_set_style_border_color(_panelSubtitle, COLOR_PANEL_BORDER, 0);
+    lv_obj_set_style_border_width(_panelSubtitle, 1, 0);
     lv_obj_set_style_radius(_panelSubtitle, 12, 0);
     lv_obj_set_style_pad_all(_panelSubtitle, 12, 0);
 
     _lblUserVoice = lv_label_create(_panelSubtitle);
     lv_obj_set_style_text_font(_lblUserVoice, UITheme::font_body_18, 0);
-    lv_label_set_text(_lblUserVoice, "🎤 「話しかけてください (例: 今日のニュースは？)」");
+    lv_label_set_text(_lblUserVoice, "🎤 「話しかけてください」");
     lv_obj_set_style_text_color(_lblUserVoice, COLOR_TEXT_SECONDARY, 0);
     lv_label_set_long_mode(_lblUserVoice, LV_LABEL_LONG_WRAP);
     lv_obj_set_width(_lblUserVoice, lv_pct(100));
@@ -96,14 +97,14 @@ void UIClock::init(lv_obj_t* parent) {
     lv_obj_set_style_text_color(_lblAssistantReply, COLOR_ACCENT_CYAN, 0);
     lv_label_set_long_mode(_lblAssistantReply, LV_LABEL_LONG_WRAP);
     lv_obj_set_width(_lblAssistantReply, lv_pct(100));
-    lv_obj_align(_lblAssistantReply, LV_ALIGN_TOP_LEFT, 0, 60);
+    lv_obj_align(_lblAssistantReply, LV_ALIGN_TOP_LEFT, 0, 48);
 
     // ==========================================
-    // 5. アクションボタン (時刻読み上げ)
+    // 5. アクションボタン (時刻読み上げ: 高さ 55px)
     // ==========================================
     _btnSpeakTime = lv_btn_create(_panel);
-    lv_obj_set_size(_btnSpeakTime, lv_pct(100), 60);
-    lv_obj_align(_btnSpeakTime, LV_ALIGN_BOTTOM_MID, 0, -10);
+    lv_obj_set_size(_btnSpeakTime, lv_pct(100), 55);
+    lv_obj_align(_btnSpeakTime, LV_ALIGN_BOTTOM_MID, 0, -8);
     lv_obj_add_style(_btnSpeakTime, &UITheme::style_btn_primary, 0);
     lv_obj_add_event_cb(_btnSpeakTime, btn_speak_event_cb, LV_EVENT_CLICKED, NULL);
 
@@ -117,7 +118,7 @@ void UIClock::updateTime(const FormattedDateTime& dt) {
     if (!_lblTime) return;
     lv_label_set_text(_lblTime, dt.timeStr);
     lv_label_set_text(_lblDate, dt.dateStr);
-    lv_label_set_text(_lblDayOfWeek, dt.dayOfWeekStr);
+    lv_label_set_text_fmt(_lblDayOfWeek, "(%s)", dt.dayOfWeekStr);
 }
 
 void UIClock::updateStatus(const SystemStatus& status) {

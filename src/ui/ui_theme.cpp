@@ -9,7 +9,8 @@ lv_style_t UITheme::style_tab_btn;
 const lv_font_t* UITheme::font_small_14 = &lv_font_montserrat_14;
 const lv_font_t* UITheme::font_body_18  = &lv_font_montserrat_18;
 const lv_font_t* UITheme::font_title_24 = &lv_font_montserrat_24;
-const lv_font_t* UITheme::font_clock_48 = &lv_font_montserrat_48;
+const lv_font_t* UITheme::font_date_28  = &lv_font_montserrat_24;
+const lv_font_t* UITheme::font_clock_64 = &lv_font_montserrat_48;
 
 uint8_t* UITheme::_fontDataBuffer = nullptr;
 size_t UITheme::_fontDataSize = 0;
@@ -89,24 +90,27 @@ bool UITheme::loadJapaneseFontFromSD(const char* ttfPath) {
         return false;
     }
 
-    // Tiny_TTF による各フォントサイズの生成
+    // Tiny_TTF による各フォントサイズの安全な生成 (14px, 18px, 24px, 28px, 64px)
     static lv_font_t* font14 = lv_tiny_ttf_create_data(_fontDataBuffer, _fontDataSize, 14);
     static lv_font_t* font18 = lv_tiny_ttf_create_data(_fontDataBuffer, _fontDataSize, 18);
     static lv_font_t* font24 = lv_tiny_ttf_create_data(_fontDataBuffer, _fontDataSize, 24);
-    static lv_font_t* font48 = lv_tiny_ttf_create_data(_fontDataBuffer, _fontDataSize, 48);
+    static lv_font_t* font28 = lv_tiny_ttf_create_data(_fontDataBuffer, _fontDataSize, 28);
+    static lv_font_t* font64 = lv_tiny_ttf_create_data(_fontDataBuffer, _fontDataSize, 64);
 
-    if (font14 && font18 && font24 && font48) {
-        // LVGL 標準シンボルアイコン (LV_SYMBOL_WIFI, LV_SYMBOL_BATTERY 等) をフォールバックとして結合
+    if (font14 && font18 && font24 && font28 && font64) {
+        // アイコン記号 (LV_SYMBOL_...) のフォールバックを設定
         font14->fallback = &lv_font_montserrat_14;
         font18->fallback = &lv_font_montserrat_18;
         font24->fallback = &lv_font_montserrat_24;
-        font48->fallback = &lv_font_montserrat_48;
+        font28->fallback = &lv_font_montserrat_24;
+        font64->fallback = &lv_font_montserrat_48;
 
         font_small_14 = font14;
         font_body_18  = font18;
         font_title_24 = font24;
-        font_clock_48 = font48;
-        Serial.println("[Font] Japanese TTF font loaded with Montserrat symbol fallbacks successfully!");
+        font_date_28  = font28;
+        font_clock_64 = font64;
+        Serial.println("[Font] Japanese TTF font loaded successfully (14px, 18px, 24px, 28px, 64px)!");
         return true;
     }
 

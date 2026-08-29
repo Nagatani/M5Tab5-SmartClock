@@ -5,12 +5,12 @@
 
 /* Color depth: 16 (RGB565) */
 #define LV_COLOR_DEPTH 16
-/* Swap the 2 bytes of RGB565 color. Useful if the display has an 8-bit interface (SPI, etc.) or M5GFX */
+/* M5GFX 向けに 16bit RGB565 の 2バイトをスワップ */
 #define LV_COLOR_16_SWAP 1
 
-/* Memory manager */
+/* Memory manager - 内部SRAMを圧迫しない安全な64KB */
 #define LV_MEM_CUSTOM 0
-#define LV_MEM_SIZE (128U * 1024U)
+#define LV_MEM_SIZE (64U * 1024U)
 
 /* Display refresh settings */
 #define LV_DISP_DEF_REFR_PERIOD 30
@@ -34,7 +34,6 @@
 
 /* Widgets */
 #define LV_USE_ARC 1
-#define LV_USE_BAR 1
 #define LV_USE_BTN 1
 #define LV_USE_BTNMATRIX 1
 #define LV_USE_CANVAS 1

@@ -13,8 +13,8 @@
 #define COLOR_ACCENT_BLUE      lv_color_hex(0x2979FF) // ボタン用ブルー
 #define COLOR_ACCENT_ORANGE    lv_color_hex(0xFF9100) // 警告・カテゴリ用オレンジ
 #define COLOR_TEXT_PRIMARY     lv_color_hex(0xFFFFFF) // 主要テキスト
-#define COLOR_TEXT_SECONDARY   lv_color_hex(0x9E9E9E) // サブテキスト
-#define COLOR_TEXT_MUTED       lv_color_hex(0x616161) // 補足テキスト
+#define COLOR_TEXT_SECONDARY   lv_color_hex(0xB0BEC5) // サブテキスト
+#define COLOR_TEXT_MUTED       lv_color_hex(0x78909C) // 補足テキスト
 #define COLOR_STATUS_OK        lv_color_hex(0x00E676) // ステータス 正常 (Green)
 #define COLOR_STATUS_WARN      lv_color_hex(0xFFD600) // ステータス 接続中 (Yellow)
 #define COLOR_STATUS_ERR       lv_color_hex(0xFF1744) // ステータス エラー (Red)
@@ -28,11 +28,12 @@ public:
     static lv_style_t style_btn_primary;
     static lv_style_t style_tab_btn;
 
-    // 日本語フォントポインタ (SDからロード成功時はTTF、未ロード時はMontserratへフォールバック)
+    // 日本語フォントポインタ
     static const lv_font_t* font_small_14;
     static const lv_font_t* font_body_18;
     static const lv_font_t* font_title_24;
-    static const lv_font_t* font_clock_48;
+    static const lv_font_t* font_date_28;   // 拡大日付・曜日用 (28px)
+    static const lv_font_t* font_clock_64;  // 特大デジタル時計用 (64px)
 
 private:
     static uint8_t* _fontDataBuffer;
