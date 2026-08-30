@@ -11,8 +11,6 @@
 #include "ui/ui_manager.h"
 #include "network/wifi_manager.h"
 #include "network/rss_parser.h"
-#include "llm/llm_module_wrapper.h"
-#include "llm/intent_dispatcher.h"
 
 // ==========================================
 // グローバル変数・同期オブジェクト
@@ -39,26 +37,12 @@ static StackType_t* g_taskLlmStack = nullptr;
 
 // 時刻読み上げボタン押下時
 void onSpeakTimeRequested() {
-    String ttsText = RTCManager::getInstance().getTTSDateTimeString();
-    Serial.printf("[Main] Speak Time Triggered: %s\n", ttsText.c_str());
-    LLMModuleWrapper::getInstance().enqueueTTS(ttsText, true);
 
-    if (UIManager::getInstance().lock(pdMS_TO_TICKS(100))) {
-        UIClock::getInstance().setVoiceSubtitle("「今の時間を教えて」", ttsText);
-        UIManager::getInstance().unlock();
-    }
 }
 
 // ニュース読み上げボタン押下時
 void onSpeakNewsRequested(const NewsItem& item) {
-    String ttsText = "ニュースをお伝えします。" + item.title + "。" + item.description;
-    Serial.printf("[Main] Speak News Triggered: %s\n", item.title.c_str());
-    LLMModuleWrapper::getInstance().enqueueTTS(ttsText, false);
 
-    if (UIManager::getInstance().lock(pdMS_TO_TICKS(100))) {
-        UIClock::getInstance().setVoiceSubtitle("「ニュースを読んで」", "「" + item.title + "」を読み上げ中");
-        UIManager::getInstance().unlock();
-    }
 }
 
 // カテゴリ切替時 (UI / 音声)
@@ -71,63 +55,7 @@ void onCategoryChanged(NewsCategoryType catType) {
 
 // 音声認識イベント発生時 (ASR / KWS)
 void onVoiceEventReceived(const VoiceEvent& ev) {
-    Serial.printf("[Main] Voice Event Intent: %d, Text: %s\n", ev.intent, ev.recognizedText.c_str());
 
-    String reply = "";
-    NewsCategoryType targetCat = CAT_TOP;
-    VoiceIntentType intent = IntentDispatcher::getInstance().parseIntent(ev.recognizedText, targetCat);
-
-    switch (intent) {
-        case INTENT_TELL_TIME: {
-            reply = RTCManager::getInstance().getTTSDateTimeString();
-            LLMModuleWrapper::getInstance().enqueueTTS(reply, true);
-            break;
-        }
-        case INTENT_READ_NEWS: {
-            const NewsItem* item = UINews::getInstance().getCurrentNewsItem();
-            if (item) {
-                reply = "「" + item->title + "」をお読みします。";
-                LLMModuleWrapper::getInstance().enqueueTTS(reply + item->description, false);
-            } else {
-                reply = "現在表示できるニュースがありません。";
-                LLMModuleWrapper::getInstance().enqueueTTS(reply, false);
-            }
-            break;
-        }
-        case INTENT_NEXT_NEWS: {
-            reply = "次のニュースを表示します。";
-            if (UIManager::getInstance().lock(pdMS_TO_TICKS(100))) {
-                UINews::getInstance().nextNews();
-                UIManager::getInstance().unlock();
-            }
-            break;
-        }
-        case INTENT_PREV_NEWS: {
-            reply = "前のニュースを表示します。";
-            if (UIManager::getInstance().lock(pdMS_TO_TICKS(100))) {
-                UINews::getInstance().prevNews();
-                UIManager::getInstance().unlock();
-            }
-            break;
-        }
-        case INTENT_CHANGE_CATEGORY: {
-            reply = "カテゴリを切り替えました。";
-            if (UIManager::getInstance().lock(pdMS_TO_TICKS(100))) {
-                UINews::getInstance().selectCategory(targetCat);
-                UIManager::getInstance().unlock();
-            }
-            break;
-        }
-        default: {
-            reply = "承知いたしました。";
-            break;
-        }
-    }
-
-    if (UIManager::getInstance().lock(pdMS_TO_TICKS(100))) {
-        UIClock::getInstance().setVoiceSubtitle(ev.recognizedText, reply);
-        UIManager::getInstance().unlock();
-    }
 }
 
 // ==========================================
@@ -243,18 +171,6 @@ void Task_Network(void* pvParameters) {
     }
 }
 
-// 3. LLM Module 通信 & 音声制御タスク (Core 0)
-void Task_LLM_Com(void* pvParameters) {
-    LLMModuleWrapper::getInstance().init();
-    LLMModuleWrapper::getInstance().setOnVoiceEventCallback(onVoiceEventReceived);
-
-    while (1) {
-        LLMModuleWrapper::getInstance().update();
-        LLMModuleWrapper::getInstance().updateStatus(g_systemStatus);
-        vTaskDelay(pdMS_TO_TICKS(20));
-    }
-}
-
 // ==========================================
 // setup & loop
 // ==========================================
@@ -293,16 +209,11 @@ void setup() {
             g_taskNetStack, &g_taskNetBuffer, TASK_NET_CORE
         );
 
-        xTaskCreateStaticPinnedToCore(
-            Task_LLM_Com, "Task_LLM_Com", TASK_LLM_STACK_SIZE, NULL, TASK_LLM_PRIORITY,
-            g_taskLlmStack, &g_taskLlmBuffer, TASK_LLM_CORE
-        );
         Serial.println("[Main] All tasks started in PSRAM successfully.");
     } else {
         // フォールバック
         xTaskCreatePinnedToCore(Task_GUI, "Task_GUI", TASK_GUI_STACK_SIZE, NULL, TASK_GUI_PRIORITY, NULL, TASK_GUI_CORE);
         xTaskCreatePinnedToCore(Task_Network, "Task_Network", TASK_NET_STACK_SIZE, NULL, 1, NULL, TASK_NET_CORE);
-        xTaskCreatePinnedToCore(Task_LLM_Com, "Task_LLM_Com", TASK_LLM_STACK_SIZE, NULL, TASK_LLM_PRIORITY, NULL, TASK_LLM_CORE);
         Serial.println("[Main] Tasks started in Internal SRAM (Fallback).");
     }
 

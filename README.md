@@ -30,7 +30,6 @@ M5Stack Tab5 (ESP32-P4 + ESP32-C6 / 1280x720 MIPI-DSI) と M5Stack LLM Module (A
 4. **堅牢な FreeRTOS マルチタスク設計:**
    - `Task_GUI` (Core 1): LVGL 描画ループ (10ms) & タッチ入力。
    - `Task_Network` (Core 0): Wi-Fi 常時監視、NTP 同期、RSS XML 取得・パース。
-   - `Task_LLM_Com` (Core 0): UART 受信、音声認識インテント解析、TTS キュー管理。
    - 全共有リソースを Mutex でスレッドセーフに保護。
 
 ---
