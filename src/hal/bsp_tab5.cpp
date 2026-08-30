@@ -13,6 +13,9 @@ bool BSPTab5::init() {
     // 外部拡張ポート・LLM Module への電源供給を確実に有効化
     M5.Power.setExtOutput(true);
 
+    // 内蔵スピーカーの音量設定 (0〜255)
+    M5.Speaker.setVolume(200);
+
     // M5GFX ディスプレイとタッチの初期化確認
     M5.Display.init();
     // 画面の向き: 横向き反転 (180度回転 -> 正しい正位置表示 1280x720)

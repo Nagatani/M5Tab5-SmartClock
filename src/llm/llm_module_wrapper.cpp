@@ -58,6 +58,13 @@ bool LLMModuleWrapper::init() {
         return false;
     }
 
+    // 0. Audio (サウンドカード・スピーカー出力) の初期化・音量設定
+    m5_module_llm::ApiAudioSetupConfig_t audioConfig;
+    audioConfig.playVolume = 1.0;
+    audioConfig.capVolume  = 1.0;
+    String audioId = _module.audio.setup(audioConfig, "audio_setup");
+    Serial.printf("[LLM] Audio Setup ID: %s\n", audioId.c_str());
+
     // 1. KWS (ウェイクワード) 初期化
     m5_module_llm::ApiKwsSetupConfig_t kwsConfig;
     kwsConfig.kws = "hi m5";
@@ -70,20 +77,21 @@ bool LLMModuleWrapper::init() {
     _asrWorkId = _module.asr.setup(asrConfig, "asr_setup", "ja_JP");
     Serial.printf("[LLM] ASR Setup ID: %s\n", _asrWorkId.c_str());
 
-    // 3. TTS (日本語 音声合成) 初期化
-    // MeloTTS 日本語モデル (model-melotts-ja-jp / ja_JP) を優先設定
+    // 3. TTS (音声合成) 初期化
+    // まず標準 TTS を ja_JP で初期化
+    m5_module_llm::ApiTtsSetupConfig_t ttsConfig;
+    _ttsWorkId = _module.tts.setup(ttsConfig, "tts_setup", "ja_JP");
+    if (_ttsWorkId.length() == 0) {
+        _ttsWorkId = _module.tts.setup(ttsConfig, "tts_setup");
+    }
+    Serial.printf("[LLM] TTS Setup ID: %s\n", _ttsWorkId.c_str());
+
+    // 4. MeloTTS (日本語 高品位モデル) も初期化試行
     m5_module_llm::ApiMelottsSetupConfig_t meloConfig;
     meloConfig.model = "model-melotts-ja-jp";
-    _ttsWorkId = _module.melotts.setup(meloConfig, "tts_setup", "ja_JP");
+    String meloId = _module.melotts.setup(meloConfig, "melo_setup", "ja_JP");
+    Serial.printf("[LLM] MeloTTS Setup ID: %s\n", meloId.c_str());
 
-    if (_ttsWorkId.length() == 0) {
-        // MeloTTS で取得できない場合は標準 TTS (ja_JP) をフォールバック
-        m5_module_llm::ApiTtsSetupConfig_t ttsConfig;
-        ttsConfig.model = "model-melotts-ja-jp";
-        _ttsWorkId = _module.tts.setup(ttsConfig, "tts_setup", "ja_JP");
-    }
-
-    Serial.printf("[LLM] TTS Japanese Setup ID: %s\n", _ttsWorkId.c_str());
     return true;
 }
 
@@ -111,13 +119,11 @@ void LLMModuleWrapper::processTTSQueue() {
 
     TTSCommand* cmd = nullptr;
     if (xQueueReceive(_ttsQueue, &cmd, 0) == pdTRUE && cmd != nullptr) {
-        Serial.printf("[LLM] Fast Playing TTS (JA): %s\n", cmd->text.c_str());
+        Serial.printf("[LLM] Playing TTS: %s\n", cmd->text.c_str());
         
-        // MeloTTS または TTS による日本語音声合成
-        int ret = _module.melotts.inference(_ttsWorkId, cmd->text, 3000);
-        if (ret != 0) {
-            _module.tts.inference(_ttsWorkId, cmd->text, 3000);
-        }
+        // TTS 音声合成リクエスト
+        int ret = _module.tts.inference(_ttsWorkId, cmd->text, 5000);
+        Serial.printf("[LLM] TTS inference result: %d\n", ret);
 
         delete cmd;
     }
@@ -196,7 +202,7 @@ void LLMModuleWrapper::update() {
 
     _module.msg.responseMsgList.clear();
 
-    // TTS キューの高速処理
+    // TTS キューの処理
     processTTSQueue();
 }
 
