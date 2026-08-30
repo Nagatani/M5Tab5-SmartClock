@@ -37,6 +37,7 @@ private:
     QueueHandle_t _ttsQueue = nullptr;
 
     bool _isReady = false;
+    bool _isMeloTTS = true;
     String _kwsWorkId = "";
     String _asrWorkId = "";
     String _ttsWorkId = "";

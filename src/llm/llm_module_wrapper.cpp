@@ -58,7 +58,7 @@ bool LLMModuleWrapper::init() {
         return false;
     }
 
-    // 0. Audio (サウンドカード・スピーカー出力) の初期化・音量設定
+    // 0. Audio (サウンドカード・スピーカー出力) の初期化
     m5_module_llm::ApiAudioSetupConfig_t audioConfig;
     audioConfig.playVolume = 1.0;
     audioConfig.capVolume  = 1.0;
@@ -77,20 +77,20 @@ bool LLMModuleWrapper::init() {
     _asrWorkId = _module.asr.setup(asrConfig, "asr_setup", "ja_JP");
     Serial.printf("[LLM] ASR Setup ID: %s\n", _asrWorkId.c_str());
 
-    // 3. TTS (音声合成) 初期化
-    // まず標準 TTS を ja_JP で初期化
-    m5_module_llm::ApiTtsSetupConfig_t ttsConfig;
-    _ttsWorkId = _module.tts.setup(ttsConfig, "tts_setup", "ja_JP");
-    if (_ttsWorkId.length() == 0) {
-        _ttsWorkId = _module.tts.setup(ttsConfig, "tts_setup");
-    }
-    Serial.printf("[LLM] TTS Setup ID: %s\n", _ttsWorkId.c_str());
-
-    // 4. MeloTTS (日本語 高品位モデル) も初期化試行
+    // 3. 日本語 音声合成 (MeloTTS) のセットアップ
     m5_module_llm::ApiMelottsSetupConfig_t meloConfig;
-    meloConfig.model = "model-melotts-ja-jp";
-    String meloId = _module.melotts.setup(meloConfig, "melo_setup", "ja_JP");
-    Serial.printf("[LLM] MeloTTS Setup ID: %s\n", meloId.c_str());
+    _ttsWorkId = _module.melotts.setup(meloConfig, "melo_setup", "ja_JP");
+
+    if (_ttsWorkId.length() > 0) {
+        _isMeloTTS = true;
+        Serial.printf("[LLM] MeloTTS (ja_JP) initialized with ID: %s\n", _ttsWorkId.c_str());
+    } else {
+        // MeloTTS が未インストールまたは失敗時のフォールバック
+        m5_module_llm::ApiTtsSetupConfig_t ttsConfig;
+        _ttsWorkId = _module.tts.setup(ttsConfig, "tts_setup", "ja_JP");
+        _isMeloTTS = false;
+        Serial.printf("[LLM] Fallback Piper TTS initialized with ID: %s\n", _ttsWorkId.c_str());
+    }
 
     return true;
 }
@@ -119,12 +119,21 @@ void LLMModuleWrapper::processTTSQueue() {
 
     TTSCommand* cmd = nullptr;
     if (xQueueReceive(_ttsQueue, &cmd, 0) == pdTRUE && cmd != nullptr) {
-        Serial.printf("[LLM] Playing TTS: %s\n", cmd->text.c_str());
+        Serial.printf("[LLM] Executing TTS Play: %s (Engine: %s, WorkID: %s)\n", 
+                      cmd->text.c_str(), _isMeloTTS ? "MeloTTS" : "PiperTTS", _ttsWorkId.c_str());
         
-        // TTS 音声合成リクエスト
-        int ret = _module.tts.inference(_ttsWorkId, cmd->text, 5000);
-        Serial.printf("[LLM] TTS inference result: %d\n", ret);
+        int ret = -1;
+        if (_isMeloTTS) {
+            ret = _module.melotts.inference(_ttsWorkId, cmd->text, 5000);
+            if (ret != 0) {
+                Serial.printf("[LLM] MeloTTS inference returned %d, trying standard TTS...\n", ret);
+                ret = _module.tts.inference(_ttsWorkId, cmd->text, 5000);
+            }
+        } else {
+            ret = _module.tts.inference(_ttsWorkId, cmd->text, 5000);
+        }
 
+        Serial.printf("[LLM] TTS Play finished with result: %d\n", ret);
         delete cmd;
     }
 }
@@ -137,6 +146,7 @@ void LLMModuleWrapper::update() {
         if (millis() - lastRetryMs > 2000) {
             lastRetryMs = millis();
             
+            UartPinCandidates:
             UartPinCandidate candidates[] = {
                 {38, 37, "Tab5 M5-BUS (RX:38, TX:37)"},
                 {37, 38, "Tab5 M5-BUS Inverted (RX:37, TX:38)"},
