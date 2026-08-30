@@ -86,8 +86,6 @@ VS Code の PlatformIO 拡張機能、または CLI から実行します：
 
 ```bash
 # プロジェクトディレクトリへ移動
-cd C:\Users\nagat\.gemini\antigravity\scratch\m5tab5-smart-clock
-
 # ビルド
 pio run
 
