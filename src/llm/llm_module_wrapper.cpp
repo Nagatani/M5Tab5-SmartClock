@@ -77,21 +77,27 @@ bool LLMModuleWrapper::init() {
     _asrWorkId = _module.asr.setup(asrConfig, "asr_setup", "ja_JP");
     Serial.printf("[LLM] ASR Setup ID: %s\n", _asrWorkId.c_str());
 
-    // 3. 日本語 音声合成 (MeloTTS) のセットアップ
-    m5_module_llm::ApiMelottsSetupConfig_t meloConfig;
-    _ttsWorkId = _module.melotts.setup(meloConfig, "melo_setup", "ja_JP");
+    // 3. 日本語 MeloTTS のダイレクト完全初期化 (model: melotts-ja-jp)
+    {
+        JsonDocument setupDoc;
+        setupDoc["request_id"]              = "melo_setup_" + String(millis());
+        setupDoc["work_id"]                 = "melotts";
+        setupDoc["action"]                  = "setup";
+        setupDoc["object"]                  = "melotts.setup";
+        setupDoc["data"]["model"]           = "melotts-ja-jp";
+        setupDoc["data"]["response_format"] = "sys.pcm";
+        setupDoc["data"]["input"][0]        = "tts.utf-8.stream";
+        setupDoc["data"]["enoutput"]        = false;
+        setupDoc["data"]["enaudio"]         = true;
 
-    if (_ttsWorkId.length() > 0) {
-        _isMeloTTS = true;
-        Serial.printf("[LLM] MeloTTS (ja_JP) initialized with ID: %s\n", _ttsWorkId.c_str());
-    } else {
-        // MeloTTS が未インストールまたは失敗時のフォールバック
-        m5_module_llm::ApiTtsSetupConfig_t ttsConfig;
-        _ttsWorkId = _module.tts.setup(ttsConfig, "tts_setup", "ja_JP");
-        _isMeloTTS = false;
-        Serial.printf("[LLM] Fallback Piper TTS initialized with ID: %s\n", _ttsWorkId.c_str());
+        String setupJson;
+        serializeJson(setupDoc, setupJson);
+        setupJson += "\n";
+        _serial->print(setupJson);
+        Serial.printf("[LLM] Direct MeloTTS Setup Sent: %s", setupJson.c_str());
     }
 
+    _ttsWorkId = "melotts";
     return true;
 }
 
@@ -115,25 +121,29 @@ bool LLMModuleWrapper::enqueueTTS(const String& text, bool highPriority) {
 }
 
 void LLMModuleWrapper::processTTSQueue() {
-    if (!_isReady || !_ttsQueue || _ttsWorkId.length() == 0) return;
+    if (!_isReady || !_ttsQueue || !_serial) return;
 
     TTSCommand* cmd = nullptr;
     if (xQueueReceive(_ttsQueue, &cmd, 0) == pdTRUE && cmd != nullptr) {
-        Serial.printf("[LLM] Executing TTS Play: %s (Engine: %s, WorkID: %s)\n", 
-                      cmd->text.c_str(), _isMeloTTS ? "MeloTTS" : "PiperTTS", _ttsWorkId.c_str());
+        Serial.printf("[LLM] Executing Native MeloTTS Push: %s\n", cmd->text.c_str());
         
-        int ret = -1;
-        if (_isMeloTTS) {
-            ret = _module.melotts.inference(_ttsWorkId, cmd->text, 5000);
-            if (ret != 0) {
-                Serial.printf("[LLM] MeloTTS inference returned %d, trying standard TTS...\n", ret);
-                ret = _module.tts.inference(_ttsWorkId, cmd->text, 5000);
-            }
-        } else {
-            ret = _module.tts.inference(_ttsWorkId, cmd->text, 5000);
-        }
+        // StackFlow の melotts が待機している Push プロトコル (action: "push", object: "tts.utf-8.stream")
+        JsonDocument doc;
+        doc["request_id"]      = "push_" + String(millis());
+        doc["work_id"]         = "melotts";
+        doc["action"]          = "push";
+        doc["object"]          = "tts.utf-8.stream";
+        doc["data"]["delta"]   = cmd->text;
+        doc["data"]["index"]   = 0;
+        doc["data"]["finish"]  = true;
 
-        Serial.printf("[LLM] TTS Play finished with result: %d\n", ret);
+        String jsonStr;
+        serializeJson(doc, jsonStr);
+        jsonStr += "\n";
+
+        _serial->print(jsonStr);
+        Serial.printf("[LLM] Sent Stream Push JSON: %s", jsonStr.c_str());
+
         delete cmd;
     }
 }
@@ -146,7 +156,6 @@ void LLMModuleWrapper::update() {
         if (millis() - lastRetryMs > 2000) {
             lastRetryMs = millis();
             
-            UartPinCandidates:
             UartPinCandidate candidates[] = {
                 {38, 37, "Tab5 M5-BUS (RX:38, TX:37)"},
                 {37, 38, "Tab5 M5-BUS Inverted (RX:37, TX:38)"},
@@ -175,8 +184,10 @@ void LLMModuleWrapper::update() {
     // UART イベント処理
     _module.update();
 
-    // ASR 受信
+    // モジュールからの全受信メッセージを可視化
     for (auto& msg : _module.msg.responseMsgList) {
+        Serial.printf("[LLM RAW RESPONSE] WorkID: %s, Msg: %s\n", msg.work_id.c_str(), msg.raw_msg.c_str());
+
         if (_asrWorkId.length() > 0 && msg.work_id == _asrWorkId) {
             JsonDocument doc;
             DeserializationError err = deserializeJson(doc, msg.raw_msg);
