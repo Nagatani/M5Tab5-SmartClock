@@ -105,10 +105,9 @@ String RTCManager::getTTSDateTimeString() {
     int hour12 = dt.hour % 12;
     if (hour12 == 0) hour12 = 12;
 
-    const char* dayJa = DAY_NAMES_JA[dt.dayOfWeek % 7];
-    char buffer[128];
-    snprintf(buffer, sizeof(buffer), "現在の時刻は、%s%d時%d分です。本日は%d月%d日、%sです。",
-             ampm.c_str(), hour12, dt.minute, dt.month, dt.day, dayJa);
+    // TTSの高速生成のため、短く明瞭な日本語にする
+    char buffer[64];
+    snprintf(buffer, sizeof(buffer), "%s%d時%d分です。", ampm.c_str(), hour12, dt.minute);
 
     return String(buffer);
 }

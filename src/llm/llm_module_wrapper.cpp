@@ -3,9 +3,8 @@
 #include "hal/bsp_tab5.h"
 #include <ArduinoJson.h>
 
-#define TTS_QUEUE_MAX_ITEMS 8
+#define TTS_QUEUE_MAX_ITEMS 4
 
-// スキャン対象のピンペア
 struct UartPinCandidate {
     int rx;
     int tx;
@@ -19,7 +18,6 @@ LLMModuleWrapper::LLMModuleWrapper() {
 bool LLMModuleWrapper::init() {
     Serial.println("[LLM] Initializing M5Stack LLM Module via UART...");
 
-    // M5Unified から自動取得を試行
     int autoRx = M5.getPin(m5::pin_name_t::port_c_rxd);
     int autoTx = M5.getPin(m5::pin_name_t::port_c_txd);
     Serial.printf("[LLM] M5Unified Port.C Pin: RX=%d, TX=%d\n", autoRx, autoTx);
@@ -41,14 +39,13 @@ bool LLMModuleWrapper::init() {
     for (size_t i = 0; i < numCandidates; ++i) {
         if (candidates[i].rx <= 0 || candidates[i].tx <= 0) continue;
 
-        Serial.printf("[LLM] Trying %s (RX:%d, TX:%d)...\n", 
+        Serial.printf("[LLM] Probing %s (RX:%d, TX:%d)...\n", 
                       candidates[i].label, candidates[i].rx, candidates[i].tx);
         
         _serial->begin(LLM_UART_BAUDRATE, SERIAL_8N1, candidates[i].rx, candidates[i].tx);
         delay(50);
         _module.begin(_serial);
 
-        // checkConnection() または sys.ping() で応答確認
         if (_module.checkConnection() || _module.sys.ping() == 0) {
             Serial.printf("[LLM] Connected successfully on %s!\n", candidates[i].label);
             _isReady = true;
@@ -73,16 +70,33 @@ bool LLMModuleWrapper::init() {
     _asrWorkId = _module.asr.setup(asrConfig, "asr_setup", "ja_JP");
     Serial.printf("[LLM] ASR Setup ID: %s\n", _asrWorkId.c_str());
 
-    // 3. TTS (音声合成 - 日本語) 初期化
-    m5_module_llm::ApiTtsSetupConfig_t ttsConfig;
-    _ttsWorkId = _module.tts.setup(ttsConfig, "tts_setup", "ja_JP");
-    Serial.printf("[LLM] TTS Setup ID: %s\n", _ttsWorkId.c_str());
+    // 3. TTS (日本語 音声合成) 初期化
+    // MeloTTS 日本語モデル (model-melotts-ja-jp / ja_JP) を優先設定
+    m5_module_llm::ApiMelottsSetupConfig_t meloConfig;
+    meloConfig.model = "model-melotts-ja-jp";
+    _ttsWorkId = _module.melotts.setup(meloConfig, "tts_setup", "ja_JP");
 
+    if (_ttsWorkId.length() == 0) {
+        // MeloTTS で取得できない場合は標準 TTS (ja_JP) をフォールバック
+        m5_module_llm::ApiTtsSetupConfig_t ttsConfig;
+        ttsConfig.model = "model-melotts-ja-jp";
+        _ttsWorkId = _module.tts.setup(ttsConfig, "tts_setup", "ja_JP");
+    }
+
+    Serial.printf("[LLM] TTS Japanese Setup ID: %s\n", _ttsWorkId.c_str());
     return true;
 }
 
 bool LLMModuleWrapper::enqueueTTS(const String& text, bool highPriority) {
     if (!_ttsQueue || text.length() == 0) return false;
+
+    // 高優先度 (ボタンタップ時など) はキューの古い未再生テキストをフラッシュして即時反応
+    if (highPriority) {
+        TTSCommand* oldCmd = nullptr;
+        while (xQueueReceive(_ttsQueue, &oldCmd, 0) == pdTRUE) {
+            delete oldCmd;
+        }
+    }
 
     TTSCommand* cmd = new TTSCommand{text, highPriority};
     if (highPriority) {
@@ -97,10 +111,13 @@ void LLMModuleWrapper::processTTSQueue() {
 
     TTSCommand* cmd = nullptr;
     if (xQueueReceive(_ttsQueue, &cmd, 0) == pdTRUE && cmd != nullptr) {
-        Serial.printf("[LLM] Playing TTS: %s\n", cmd->text.c_str());
+        Serial.printf("[LLM] Fast Playing TTS (JA): %s\n", cmd->text.c_str());
         
-        // M5ModuleLLM TTS 音声合成リクエスト
-        _module.tts.inference(_ttsWorkId, cmd->text);
+        // MeloTTS または TTS による日本語音声合成
+        int ret = _module.melotts.inference(_ttsWorkId, cmd->text, 3000);
+        if (ret != 0) {
+            _module.tts.inference(_ttsWorkId, cmd->text, 3000);
+        }
 
         delete cmd;
     }
@@ -111,7 +128,6 @@ void LLMModuleWrapper::update() {
     static int retryCandidateIdx = 0;
 
     if (!_isReady) {
-        // 未初期化の場合は 2 秒ごとにリトライ
         if (millis() - lastRetryMs > 2000) {
             lastRetryMs = millis();
             
@@ -140,16 +156,15 @@ void LLMModuleWrapper::update() {
         return;
     }
 
-    // UART からのイベント受信とパース
+    // UART イベント処理
     _module.update();
 
-    // ASR / KWS 受信メッセージの処理
+    // ASR 受信
     for (auto& msg : _module.msg.responseMsgList) {
         if (_asrWorkId.length() > 0 && msg.work_id == _asrWorkId) {
             JsonDocument doc;
             DeserializationError err = deserializeJson(doc, msg.raw_msg);
             if (err == DeserializationError::Ok) {
-                // ASR 認識テキストの抽出 (delta または text)
                 String recognizedText = "";
                 if (doc["data"].is<JsonObject>()) {
                     if (doc["data"]["delta"].is<const char*>()) {
@@ -179,10 +194,9 @@ void LLMModuleWrapper::update() {
         }
     }
 
-    // 処理済みメッセージリストのクリア
     _module.msg.responseMsgList.clear();
 
-    // TTS キューの処理
+    // TTS キューの高速処理
     processTTSQueue();
 }
 
