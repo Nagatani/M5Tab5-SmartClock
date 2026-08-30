@@ -58,46 +58,44 @@ bool LLMModuleWrapper::init() {
         return false;
     }
 
-    // 0. Audio (サウンドカード・スピーカー出力) の初期化
+    // 0. モジュール内部の古いタスクを全リセット
+    Serial.println("[LLM] Resetting existing module tasks...");
+    _module.sys.reset();
+    delay(600);
+
+    // 1. Audio (サウンドカード・スピーカー出力) の初期化
     m5_module_llm::ApiAudioSetupConfig_t audioConfig;
     audioConfig.playVolume = 1.0;
     audioConfig.capVolume  = 1.0;
     String audioId = _module.audio.setup(audioConfig, "audio_setup");
     Serial.printf("[LLM] Audio Setup ID: %s\n", audioId.c_str());
 
-    // 1. KWS (ウェイクワード) 初期化
+    // 2. KWS (ウェイクワード) 初期化
     m5_module_llm::ApiKwsSetupConfig_t kwsConfig;
     kwsConfig.kws = "hi m5";
     _kwsWorkId = _module.kws.setup(kwsConfig, "kws_setup");
     Serial.printf("[LLM] KWS Setup ID: %s\n", _kwsWorkId.c_str());
 
-    // 2. ASR (音声認識 - 日本語) 初期化
+    // 3. ASR (音声認識 - 日本語) 初期化
     m5_module_llm::ApiAsrSetupConfig_t asrConfig;
     asrConfig.input = {"sys.pcm", _kwsWorkId};
     _asrWorkId = _module.asr.setup(asrConfig, "asr_setup", "ja_JP");
     Serial.printf("[LLM] ASR Setup ID: %s\n", _asrWorkId.c_str());
 
-    // 3. 日本語 MeloTTS のダイレクト完全初期化 (model: melotts-ja-jp)
-    {
-        JsonDocument setupDoc;
-        setupDoc["request_id"]              = "melo_setup_" + String(millis());
-        setupDoc["work_id"]                 = "melotts";
-        setupDoc["action"]                  = "setup";
-        setupDoc["object"]                  = "melotts.setup";
-        setupDoc["data"]["model"]           = "melotts-ja-jp";
-        setupDoc["data"]["response_format"] = "sys.pcm";
-        setupDoc["data"]["input"][0]        = "tts.utf-8.stream";
-        setupDoc["data"]["enoutput"]        = false;
-        setupDoc["data"]["enaudio"]         = true;
+    // 4. 日本語 MeloTTS のセットアップ (ライブラリの setup メソッドから動的 WorkID を取得)
+    m5_module_llm::ApiMelottsSetupConfig_t meloConfig;
+    meloConfig.model = "melotts-ja-jp";
+    meloConfig.response_format = "sys.pcm";
+    meloConfig.input = {"tts.utf-8.stream"};
+    meloConfig.enaudio = true;
+    meloConfig.enoutput = false;
+    _ttsWorkId = _module.melotts.setup(meloConfig, "melo_setup", "ja_JP");
 
-        String setupJson;
-        serializeJson(setupDoc, setupJson);
-        setupJson += "\n";
-        _serial->print(setupJson);
-        Serial.printf("[LLM] Direct MeloTTS Setup Sent: %s", setupJson.c_str());
+    if (_ttsWorkId.length() == 0) {
+        _ttsWorkId = "melotts.1003";
     }
 
-    _ttsWorkId = "melotts";
+    Serial.printf("[LLM] MeloTTS (ja_JP) Active Work ID: %s\n", _ttsWorkId.c_str());
     return true;
 }
 
@@ -121,16 +119,17 @@ bool LLMModuleWrapper::enqueueTTS(const String& text, bool highPriority) {
 }
 
 void LLMModuleWrapper::processTTSQueue() {
-    if (!_isReady || !_ttsQueue || !_serial) return;
+    if (!_isReady || !_ttsQueue || !_serial || _ttsWorkId.length() == 0) return;
 
     TTSCommand* cmd = nullptr;
     if (xQueueReceive(_ttsQueue, &cmd, 0) == pdTRUE && cmd != nullptr) {
-        Serial.printf("[LLM] Executing Native MeloTTS Push: %s\n", cmd->text.c_str());
+        Serial.printf("[LLM] Executing Native MeloTTS Push: %s (Target WorkID: %s)\n", 
+                      cmd->text.c_str(), _ttsWorkId.c_str());
         
-        // StackFlow の melotts が待機している Push プロトコル (action: "push", object: "tts.utf-8.stream")
+        // StackFlow の動的 work_id 宛に Push
         JsonDocument doc;
         doc["request_id"]      = "push_" + String(millis());
-        doc["work_id"]         = "melotts";
+        doc["work_id"]         = _ttsWorkId; // 例: "melotts.1003"
         doc["action"]          = "push";
         doc["object"]          = "tts.utf-8.stream";
         doc["data"]["delta"]   = cmd->text;
@@ -184,9 +183,15 @@ void LLMModuleWrapper::update() {
     // UART イベント処理
     _module.update();
 
-    // モジュールからの全受信メッセージを可視化
+    // モジュールからの全受信メッセージを処理
     for (auto& msg : _module.msg.responseMsgList) {
         Serial.printf("[LLM RAW RESPONSE] WorkID: %s, Msg: %s\n", msg.work_id.c_str(), msg.raw_msg.c_str());
+
+        // MeloTTS の動的 WorkID の自動学習更新
+        if (msg.work_id.startsWith("melotts.") && _ttsWorkId != msg.work_id) {
+            _ttsWorkId = msg.work_id;
+            Serial.printf("[LLM] Updated Active MeloTTS WorkID to: %s\n", _ttsWorkId.c_str());
+        }
 
         if (_asrWorkId.length() > 0 && msg.work_id == _asrWorkId) {
             JsonDocument doc;
